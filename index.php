@@ -1,3 +1,6 @@
+
+
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -674,94 +677,99 @@ function showPage(page) {
 // Site     : https://sciencehub.voanh.art
 // ══════════════════════════════════════════
 const MISTRAL_KEYS = [
-  ' YOUR MISTRAL API KEY 1 ',
-  ' YOUR MISTRAL API KEY 2 ',
-  ' YOUR MISTRAL API KEY 3 '
+
+  ' your mistral api key 1 ',
+  ' your mistral api key 2 ',
+  ' your mistral api key 3 '
 ];
 const MISTRAL_MODEL = 'pixtral-12b-2409';
 const MISTRAL_ENDPOINT = 'https://api.mistral.ai/v1/chat/completions';
 let currentKeyIndex = 0;
 
 async function callMistralAI(prompt, systemMsg, stepLabel) {
-  const logEntry = {
-    id: getNextId(DB.aiLogs),
-    request_type: stepLabel || 'chat',
-    model_used: MISTRAL_MODEL,
-    prompt: prompt.substring(0, 300),
-    created_at: new Date().toLocaleString('fr-FR'),
-    success: 0,
-    tokens_used: 0
+  let totalAttempts = 0;
+  
+  // Fonction interne pour mettre à jour le texte du loader pendant l'attente
+  const setStatus = (msg) => {
+    const elAuto = document.getElementById('auto-loader-text');
+    const elGuided = document.getElementById('guided-loader-text');
+    if(elAuto) elAuto.textContent = msg;
+    if(elGuided) elGuided.textContent = msg;
+    console.log(msg);
   };
 
-  // Timeout étendu à 120 secondes pour les réponses longues
-  const CONTROLLER_TIMEOUT = 120000;
-  
-  // Rotation des 3 clés — essaie chacune en cas d'échec
-  let lastError = '';
-  for (let attempt = 0; attempt < MISTRAL_KEYS.length; attempt++) {
-    const keyIdx = (currentKeyIndex + attempt) % MISTRAL_KEYS.length;
-    const apiKey = MISTRAL_KEYS[keyIdx];
-    logEntry.model_used = MISTRAL_MODEL + ' [key' + (keyIdx + 1) + ']';
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), CONTROLLER_TIMEOUT);
+  // BOUCLE INFINIE : On ne sortira d'ici qu'avec une vraie réponse de l'IA
+  while (true) {
+    totalAttempts++;
+    
+    // On parcourt les 3 clés API disponibles
+    for (let i = 0; i < MISTRAL_KEYS.length; i++) {
+      const keyIdx = (currentKeyIndex + i) % MISTRAL_KEYS.length;
+      const apiKey = MISTRAL_KEYS[keyIdx];
       
-      const response = await fetch(MISTRAL_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey
-        },
-        body: JSON.stringify({
-          model: MISTRAL_MODEL,
-          messages: [
-            {
-              role: 'system',
-              content: systemMsg || 'Tu es un assistant de recherche scientifique expert. Réponds en français, de façon structurée et détaillée.'
-            },
-            { role: 'user', content: prompt }
-          ],
-          max_tokens: 8192,
-          temperature: 0.7
-        }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
+      setStatus(`[Tentative ${totalAttempts}] Mistral analyse... (L'IA peut mettre plus de 2 minutes à répondre, restez sur cette page)`);
 
-      if (response.ok) {
-        const data = await response.json();
-        const text = data.choices?.[0]?.message?.content;
-        if (text) {
-          // Succès — on avance l'index pour équilibrer la charge
-          currentKeyIndex = (keyIdx + 1) % MISTRAL_KEYS.length;
-          logEntry.success = 1;
-          logEntry.tokens_used = data.usage?.total_tokens || 0;
-          DB.aiLogs.unshift(logEntry);
-          saveDB();
-          return text;
+      try {
+        // Le fetch n'a pas de timeout par défaut en JS, il attendra la réponse du serveur (Hostinger/Mistral)
+        const response = await fetch(MISTRAL_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey
+          },
+          body: JSON.stringify({
+            model: MISTRAL_MODEL,
+            messages: [
+              { role: 'system', content: systemMsg || 'Expert scientifique.' },
+              { role: 'user', content: prompt }
+            ],
+            max_tokens: 40960,
+            temperature: 0.7
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const text = data.choices?.[0]?.message?.content;
+          
+          if (text) {
+            // SUCCÈS : On enregistre et on retourne le vrai texte
+            currentKeyIndex = (keyIdx + 1) % MISTRAL_KEYS.length;
+            DB.aiLogs.unshift({
+              id: getNextId(DB.aiLogs),
+              request_type: stepLabel || 'chat',
+              model_used: MISTRAL_MODEL + ' (Clé ' + (keyIdx + 1) + ')',
+              success: 1,
+              tokens_used: data.usage?.total_tokens || 0,
+              created_at: new Date().toLocaleString('fr-FR')
+            });
+            saveDB();
+            return text; 
+          }
+        } else {
+          // GESTION DES ERREURS API (429 = trop de requêtes, etc.)
+          const errData = await response.json().catch(() => ({}));
+          console.warn(`Clé ${keyIdx + 1} en erreur : ${response.status}`, errData);
+          
+          if (response.status === 429) {
+            setStatus("Limite d'appels atteinte. Pause de 10s avant de tester la clé suivante...");
+            await new Promise(r => setTimeout(r, 10000));
+          }
+          // On continue la boucle 'for' pour tester la clé suivante
         }
-      } else {
-        const errData = await response.json().catch(() => ({}));
-        lastError = `HTTP ${response.status} — ${errData.message || response.statusText}`;
-        // 429 rate limit → essaie la clé suivante immédiatement
-        if (response.status === 429 || response.status === 401) continue;
+      } catch (e) {
+        // ERREUR RÉSEAU (Timeout, coupure internet)
+        console.error("Erreur réseau :", e);
+        setStatus("Erreur réseau ou timeout. Nouvelle tentative dans 5s...");
+        await new Promise(r => setTimeout(r, 5000));
       }
-    } catch(e) {
-      lastError = e.message;
     }
+    
+    // Si on arrive ici, on a testé toutes les clés sans succès. 
+    // On attend un peu avant de recommencer un cycle complet de tentatives.
+    setStatus(`Échec du cycle de clés. Relance globale (Tentative ${totalAttempts + 1}) dans 15s...`);
+    await new Promise(r => setTimeout(r, 15000));
   }
-
-  // TOUTES LES CLÉS ONT ÉCHOUÉ — PAS DE FALLBACK SIMULÉ
-  // On lance une erreur critique pour informer l'utilisateur
-  console.error('ÉCHEC CRITIQUE: Toutes les clés API Mistral ont échoué (' + lastError + ')');
-  logEntry.success = 0;
-  logEntry.model_used = 'ECHEC_API';
-  DB.aiLogs.unshift(logEntry);
-  saveDB();
-  
-  throw new Error('API Mistral indisponible après 3 tentatives. Vérifiez vos clés API dans Paramètres. Erreur: ' + lastError);
 }
 
 function generateSimulatedResponse(prompt, system, step) {
