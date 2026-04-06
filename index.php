@@ -1,6 +1,3 @@
-
-
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -678,9 +675,9 @@ function showPage(page) {
 // ══════════════════════════════════════════
 const MISTRAL_KEYS = [
 
-  ' your mistral api key 1 ',
-  ' your mistral api key 2 ',
-  ' your mistral api key 3 '
+  '   api key here ',
+  '   api key here ',
+  '   api key here '
 ];
 const MISTRAL_MODEL = 'pixtral-12b-2409';
 const MISTRAL_ENDPOINT = 'https://api.mistral.ai/v1/chat/completions';
@@ -688,7 +685,7 @@ let currentKeyIndex = 0;
 
 async function callMistralAI(prompt, systemMsg, stepLabel) {
   let totalAttempts = 0;
-  
+
   // Fonction interne pour mettre à jour le texte du loader pendant l'attente
   const setStatus = (msg) => {
     const elAuto = document.getElementById('auto-loader-text');
@@ -701,12 +698,12 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
   // BOUCLE INFINIE : On ne sortira d'ici qu'avec une vraie réponse de l'IA
   while (true) {
     totalAttempts++;
-    
+
     // On parcourt les 3 clés API disponibles
     for (let i = 0; i < MISTRAL_KEYS.length; i++) {
       const keyIdx = (currentKeyIndex + i) % MISTRAL_KEYS.length;
       const apiKey = MISTRAL_KEYS[keyIdx];
-      
+
       setStatus(`[Tentative ${totalAttempts}] Mistral analyse... (L'IA peut mettre plus de 2 minutes à répondre, restez sur cette page)`);
 
       try {
@@ -731,7 +728,7 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
         if (response.ok) {
           const data = await response.json();
           const text = data.choices?.[0]?.message?.content;
-          
+
           if (text) {
             // SUCCÈS : On enregistre et on retourne le vrai texte
             currentKeyIndex = (keyIdx + 1) % MISTRAL_KEYS.length;
@@ -744,13 +741,13 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
               created_at: new Date().toLocaleString('fr-FR')
             });
             saveDB();
-            return text; 
+            return text;
           }
         } else {
           // GESTION DES ERREURS API (429 = trop de requêtes, etc.)
           const errData = await response.json().catch(() => ({}));
           console.warn(`Clé ${keyIdx + 1} en erreur : ${response.status}`, errData);
-          
+
           if (response.status === 429) {
             setStatus("Limite d'appels atteinte. Pause de 10s avant de tester la clé suivante...");
             await new Promise(r => setTimeout(r, 10000));
@@ -764,397 +761,12 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
         await new Promise(r => setTimeout(r, 5000));
       }
     }
-    
-    // Si on arrive ici, on a testé toutes les clés sans succès. 
+
+    // Si on arrive ici, on a testé toutes les clés sans succès.
     // On attend un peu avant de recommencer un cycle complet de tentatives.
     setStatus(`Échec du cycle de clés. Relance globale (Tentative ${totalAttempts + 1}) dans 15s...`);
     await new Promise(r => setTimeout(r, 15000));
   }
-}
-
-function generateSimulatedResponse(prompt, system, step) {
-  const domain = autoState.domain || guidedState.domain || 'sciences';
-  const responses = {
-    'step1_auto': `**Hypothèse Générée — GENESIS-ULTRA v9.1**
-
-**Hypothèse principale :**
-L'autophagie mitochondriale sélective (mitophagie) dans les neurones dopaminergiques serait modulée par un réseau de microARN spécifiques au cerveau vieillissant, créant une boucle de rétroaction entre stress oxydatif et dysfonction lysosomale — potentiellement réversible par des interventions épigénétiques ciblées.
-
-**Justification scientifique :**
-Convergence de preuves issues de la biologie des systèmes, de la neurobiologie moléculaire et de l'épigénétique. Le lien microARN-mitophagie n'a pas encore été étudié dans ce contexte précis.
-
-**Score de nouveauté :** 8.4/10
-**Score de testabilité :** 7.9/10
-
-**Impact potentiel :**
-Si confirmée, cette hypothèse ouvrirait une voie thérapeutique entièrement nouvelle contre les maladies neurodégénératives (Parkinson, Alzheimer) via la reprogrammation épigénétique ciblée.`,
-
-    'step2_auto': `**Étape 2/9 — Recherche Bibliographique**
-
-**Articles clés identifiés :**
-
-1. **"Mitophagy and neurodegeneration"** — Pickrell & Bhaskara (2023), *Nature Neuroscience*
-   DOI: 10.1038/nn.4234 | Pertinence: 9.2/10
-
-2. **"MicroRNA regulation of autophagy pathways"** — Zhang et al. (2024), *Cell Metabolism*
-   DOI: 10.1016/j.cmet.2024.01.008 | Pertinence: 8.8/10
-
-3. **"Epigenetic control of mitochondrial function"** — Liu & Chen (2023), *EMBO Journal*
-   DOI: 10.15252/embj.2023112458 | Pertinence: 8.5/10
-
-4. **"Dopaminergic neuron vulnerability in aging"** — Rodriguez et al. (2022), *Brain*
-   DOI: 10.1093/brain/awac134 | Pertinence: 8.1/10
-
-5. **"Lysosomal dysfunction and neurodegeneration"** — Settembre & Ballabio (2023)
-   *Annual Review of Neuroscience* | Pertinence: 7.9/10
-
-**Sources recommandées :** PubMed, bioRxiv, Semantic Scholar
-**Lacune détectée :** Aucune étude n'a encore croisé microARN + mitophagie + épigénétique dans ce contexte spécifique.`,
-
-    'step3_auto': `**Étape 3/9 — Analyse Critique**
-
-**Points forts :**
-• Originalité élevée : croisement de 3 domaines encore peu interconnectés
-• Falsifiabilité solide : prédictions mesurables in vitro et in vivo
-• Potentiel translatif immédiat vers la clinique
-
-**Faiblesses identifiées :**
-• Complexité des systèmes microARN : risque de faux positifs
-• Modèles animaux disponibles partiellement représentatifs
-• Coût expérimental élevé (séquençage single-cell requis)
-
-**Contre-arguments à anticiper :**
-• La mitophagie peut être protectrice ET délétère selon le contexte
-• La barrière hémato-encéphalique limite les interventions épigénétiques
-
-**Recommandations :**
-1. Réduire le scope initial : se concentrer sur 2-3 microARN candidats
-2. Valider d'abord in vitro sur des organoïdes cérébraux
-3. Utiliser des modèles CRISPR pour knockout sélectif`,
-
-    'step4_auto': `**Étape 4/9 — Conception Expérimentale**
-
-**Protocole expérimental :**
-
-*Phase 1 — In vitro (mois 1-6) :*
-• Culture de neurones dopaminergiques iPSC humains
-• Séquençage miRNA-seq et RNA-seq en parallèle
-• Induction de stress mitochondrial contrôlé (roténone)
-• Mesure de la mitophagie par microscopie confocale (Mito-Keima)
-
-*Phase 2 — Validation (mois 7-12) :*
-• Knockout par CRISPR-Cas9 des miRNA candidats (top 3)
-• Rescue par vecteurs AAV ciblant le mésencéphale
-• Mesures : potentiel membranaire, ROS, complexes respiratoires
-
-*Phase 3 — Modèle animal (mois 13-24) :*
-• Souris transgéniques α-synucléine A53T
-• Injection stéréotaxique AAV-miRNA dans la substance noire
-• Évaluation comportementale (rotarod, open field, démarche)
-
-**Critères de succès :**
-• Réduction ≥40% de mitophagie dysfonctionnelle
-• Maintien du pool de neurones dopaminergiques >75%`,
-
-    'step5_auto': `**Étape 5/9 — Simulation Prédictive**
-
-**Prédictions quantitatives :**
-
-| Paramètre | Baseline | Avec intervention | IC 95% |
-|-----------|----------|-------------------|--------|
-| Mitophagie (ratio sain/total) | 0.34 | 0.71 | [0.62-0.80] |
-| Survie neuronale (%) | 58% | 84% | [79-89%] |
-| Niveaux ROS (UA) | 4.2 | 1.8 | [1.4-2.3] |
-| Expression PINK1 | x1.0 | x2.4 | [2.1-2.8] |
-
-**Scénario optimiste (p=0.3) :** Réduction de 65% des marqueurs pathologiques
-**Scénario baseline (p=0.5) :** Amélioration de 40%, validation partielle
-**Scénario pessimiste (p=0.2) :** Effets compensatoires, reformulation requise
-
-**Signatures expérimentales attendues :**
-• Colocalisation LC3B/TOM20 augmentée (confocal)
-• Flux autophagique normalisé (western blot p62/LC3-II)
-• Transcriptome mitochondrial remodelé (RNA-seq)`,
-
-    'step6_auto': `**Étape 6/9 — Validation Croisée**
-
-**Compatibilité avec théories établies :**
-✓ Compatible avec la théorie mitochondriale du vieillissement (Harman 1972, révisée 2023)
-✓ S'aligne avec le modèle "mitochondria-first" de la neurodegenération
-✓ Cohérent avec les données d'épigénétique de l'âge (horloge de Horvath)
-
-**Incohérences à résoudre :**
-⚠ La mitophagie excessive peut aussi être délétère (nécrose mitoptique)
-⚠ L'efficacité des vecteurs AAV au niveau de la substance noire varie selon les souches
-
-**Domaines d'application élargis :**
-• Sclérose latérale amyotrophique (ALS)
-• Huntington — mécanismes similaires détectés
-• Vieillissement physiologique non pathologique
-
-**Score de cohérence globale : 8.1/10**`,
-
-    'step7_auto': `**Étape 7/9 — Optimisation**
-
-**Hypothèse optimisée :**
-"La modulation ciblée des microARN miR-34a et miR-335-5p restaure la mitophagie PINK1/Parkin dans les neurones dopaminergiques vieillissants en inversant la méthylation du promoteur TFEB — effet démontrable dans des organoïdes cérébraux humains en 6 mois."
-
-**Améliorations vs version initiale :**
-- Scope réduit : 2 microARN spécifiques au lieu de "réseau"
-- Timeline compressée : 6 mois au lieu de 24 pour la preuve de concept
-- Modèle de choix : organoïdes > souris (translationalité directe)
-- Coût estimé réduit de 40% (évite les modèles transgéniques initiaux)
-
-**Nouveau ratio effort/impact : 9.1/10**`,
-
-    'step8_auto': `**Étape 8/9 — Génération de Code**
-
-\`\`\`php
-<?php
-// Simulation de mitophagie — Science Hub Ultimate
-class MitophagySimulator {
-    public float $baselineMitophagy = 0.34;
-    public float $miRNAInhibition = 0.0;
-    
-    public function simulate(float $inhibitionLevel): array {
-        $mitophagyRate = $this->baselineMitophagy + 
-            ($inhibitionLevel * 0.37);
-        $neuronSurvival = min(0.95, 0.58 + $inhibitionLevel * 0.26);
-        $rosLevel = max(0.5, 4.2 - $inhibitionLevel * 2.4);
-        
-        return [
-            'mitophagy_rate' => round($mitophagyRate, 3),
-            'neuron_survival' => round($neuronSurvival * 100, 1) . '%',
-            'ros_level' => round($rosLevel, 2),
-            'therapeutic_index' => round($neuronSurvival / $rosLevel * 10, 2)
-        ];
-    }
-}
-
-$sim = new MitophagySimulator();
-$results = [];
-for ($i = 0; $i <= 10; $i++) {
-    $results[] = $sim->simulate($i / 10);
-}
-header('Content-Type: application/json');
-echo json_encode($results);
-\`\`\`
-
-\`\`\`javascript
-// Visualisation interactive
-const ctx = document.getElementById('chart').getContext('2d');
-const chart = new Chart(ctx, {
-  type: 'line',
-  data: {
-    labels: Array.from({length: 11}, (_, i) => (i * 10) + '%'),
-    datasets: [{
-      label: 'Survie neuronale (%)',
-      data: [58, 61, 64, 67, 71, 74, 77, 80, 83, 86, 84],
-      borderColor: '#06b6d4', fill: true, tension: 0.4
-    }, {
-      label: 'ROS (UA)',
-      data: [4.2, 3.96, 3.72, 3.48, 3.0, 2.76, 2.28, 1.8, 1.56, 1.2, 1.8],
-      borderColor: '#ef4444', fill: false, tension: 0.4
-    }]
-  }
-});
-\`\`\``,
-
-    'step9_auto': `**RAPPORT SCIENTIFIQUE FINAL — GENESIS-ULTRA v9.1**
-
----
-
-## Résumé Exécutif
-
-Cette recherche établit une connexion nouvelle entre la régulation par microARN, la mitophagie sélective et l'épigénétique dans les neurones dopaminergiques — avec des implications directes pour le traitement de la maladie de Parkinson.
-
-## Hypothèse Finale Validée
-
-*"La suppression de miR-34a et miR-335-5p restaure la mitophagie PINK1/Parkin dans les neurones dopaminergiques vieillissants via la déméthylation du promoteur TFEB, réduisant la charge pathologique de 40-65% dans des modèles organoïdes humains."*
-
-## Résultats Projetés
-
-| Critère | Valeur |
-|---------|--------|
-| Score de nouveauté | 8.4/10 |
-| Score de faisabilité | 7.9/10 |
-| Impact potentiel | Élevé (3 pathologies) |
-| Timeline preuve de concept | 6 mois |
-| Budget estimé | 280-340 k€ |
-
-## Prochaines Étapes
-
-1. Soumission demande financement ANR/ERC
-2. Partenariat avec biobanque cerveau humain
-3. Dépôt brevet méthode d'identification microARN
-4. Publication revue systématique (Journal of Neuroscience)
-
-## Score de Confiance Global : **8.7/10**
-
----
-*Généré par GENESIS-ULTRA v9.1 — Science Hub Ultimate*`,
-
-    'step1_guided': `**Question de Recherche Affinée — GENESIS-ULTRA V3**
-
-**Question raffinée :**
-"Dans quelle mesure les dysfonctions de la barrière hémato-encéphalique (BHE) précèdent-elles, causent-elles, ou résultent-elles de l'accumulation de beta-amyloïde dans la maladie d'Alzheimer sporadique, et quelles cellules endothéliales spécifiques sont impliquées ?"
-
-**Sous-questions connexes :**
-1. Les transporteurs de l'efflux (P-gp, LRP1) sont-ils régulés différemment selon l'haplotype APOE ?
-2. La neuroinflammation est-elle cause ou conséquence primaire de la dysfonction BHE ?
-3. Les biomarqueurs plasmatiques de perméabilité BHE (fibrinogène, albumine) précèdent-ils les symptômes cognitifs ?
-
-**Concepts clés :** BHE, tight junctions, pericytes, neuroinflammation, clearance amyloïde
-
-**Approche recommandée :** Méta-analyse d'études longitudinales + modèles in vitro BHE-on-chip`,
-
-    'step2_guided': `**Étape 2/6 — Sources Scientifiques (36 APIs)**
-
-**Articles clés identifiés :**
-
-*Via PubMed :*
-• Sweeney et al. (2018) "Blood-brain barrier: from physiology to disease" — *Nature Reviews Neuroscience* DOI:10.1038/s41583-018-0054-z
-
-*Via arXiv/bioRxiv :*
-• Montagne et al. (2020) "APOE4 leads to BBB disruption in Alzheimer's disease" — *Nature* 2020;581:71-76
-
-*Via Semantic Scholar :*
-• Nation et al. (2019) "Pericyte degeneration promotes BBB breakdown" — *Nature Medicine*
-
-**Revues systématiques :**
-• Cochrane Review 2023 : "BBB biomarkers in preclinical Alzheimer's" (n=47 études)
-• Meta-analyse Brain 2024 : "BBB integrity vs cognitive decline" (n=12,400 patients)
-
-**Bases spécialisées recommandées :**
-• AlzForum (alzforum.org) — base de données spécialisée
-• OpenAlex : 3,847 articles sur "BBB + Alzheimer" depuis 2020
-
-**Lacune identifiée :** Les études longitudinales avec biomarqueurs plasmatiques BHE restent rares (n<10 études).`,
-
-    'step3_guided': `**Étape 3/6 — Analyse de l'État de l'Art**
-
-**1. Consensus scientifique actuel :**
-La dysfonction BHE est maintenant considérée comme un événement précoce dans la MA, précédant souvent les plaques amyloïdes détectables. Les pericytes jouent un rôle central (Nation et al. 2019).
-
-**2. Zones de controverse :**
-• Cause vs conséquence : 40% des chercheurs considèrent la dysfonction BHE primaire, 60% secondaire
-• Rôle de l'ApoE4 : mécanismes de transport transcellulaire encore débattus
-• Les modèles murins surexpriment rarement les mêmes gènes qu'en clinique humaine
-
-**3. Lacunes dans la littérature :**
-• Peu d'études longitudinales >5 ans avec biomarqueurs BHE
-• Manque de données sur les différences sexuelles (femmes plus touchées)
-• Absence de données sur les interventions précoces sur la BHE
-
-**4. Méthodologies dominantes :**
-• IRM dynamique avec contraste (DCE-MRI) — gold standard
-• Modèles BBB-on-chip (émergent, très prometteur)
-• Protéomique du LCR et du plasma
-
-**5. Résultats contradictoires :**
-L'efficacité des inhibiteurs de LRP1 varie fortement selon les études (0-60% de réduction amyloïde).`,
-
-    'step4_guided': `**Étape 4/6 — Conception Méthodologique**
-
-**Design proposé : Étude longitudinale observationnelle + validation in vitro**
-
-**Population :** 500 sujets (250 MCI, 150 Alzheimer précoce, 100 contrôles âge-appariés)
-**Durée :** 4 ans de suivi, mesures à 0, 12, 24, 36, 48 mois
-
-**Variables principales :**
-- Biomarqueurs plasmatiques : fibrinogène, albumine, VEGF, angiopoïétine-2
-- Imagerie : DCE-MRI (perméabilité BHE), amyloid-PET, tau-PET
-- Cognitif : MMSE, MoCA, batterie CANTAB
-
-**Analyses statistiques :**
-- Modèles mixtes longitudinaux (LME)
-- Analyse de médiation causale (bootstrap 5000 itérations)
-- Machine learning (Random Forest) pour biomarqueurs prédictifs
-
-**Validation in vitro :**
-- Modèle BBB-on-chip avec cellules endothéliales iPS humaines
-- Test de perméabilité en présence d'Aβ oligomères
-
-**Considérations éthiques :**
-- Approbation CPP requise
-- Consentement éclairé dynamique
-- Données anonymisées (RGPD)`,
-
-    'step5_guided': `**Étape 5/6 — Revue par les Pairs Simulée**
-
-**Reviewer 1 — Dr. Chen (Neurobiologie vasculaire, Harvard)**
-*Points forts :* Design longitudinal bien contrôlé. L'inclusion de biomarqueurs plasmatiques innovants est particulièrement pertinente. La validation BBB-on-chip renforce la translationalité.
-*Recommandation : Accepter avec révisions mineures*
-
-**Reviewer 2 — Prof. Dubois (Neurologie, Salpêtrière)**
-*Faiblesses identifiées :* L'échantillon de 500 sujets est sous-dimensionné pour détecter des effets subtils (puissance ~72% — recommander 650+). La durée de 4 ans risque d'être insuffisante pour les formes précoces.
-*Recommandation : Révisions majeures — augmenter n et durée*
-
-**Reviewer 3 — Dr. Müller (Bioinformatique, Berlin)**
-*Recommandations :* Ajouter une analyse de Mendelisation mendélienne pour inférence causale plus robuste. Considérer les données UK Biobank en complément. Inclure l'analyse du microbiome (lien BHE-microbiote émergent).
-
-**Synthèse du comité :**
-Score de qualité : **7.6/10**
-Décision : Révisions modérées requises. Potentiel de publication élevé (Nature Medicine ou Brain visés).`,
-
-    'step6_guided': `**RAPPORT FINAL — GENESIS-ULTRA V3**
-
----
-
-## Résumé Exécutif
-
-Cette étude propose la première investigation longitudinale systématique du rôle causal de la dysfonction BHE dans la maladie d'Alzheimer sporadique, combinant biomarqueurs plasmatiques innovants et modèles in vitro BBB-on-chip.
-
-## Contexte & Justification
-
-La BHE est compromise chez 80% des patients Alzheimer dès le stade MCI. Comprendre la temporalité causale est essentiel pour identifier des fenêtres d'intervention précoce.
-
-## Méthodologie Finalisée
-
-- **N = 650** sujets (révision post-review), durée 5 ans
-- Biomarqueurs plasmatiques + DCE-MRI + cognition
-- Validation mécanistique BBB-on-chip
-
-## Timeline Estimée
-
-| Phase | Durée | Ressources |
-|-------|-------|------------|
-| Recrutement | 18 mois | 3 CHU partenaires |
-| Suivi actif | 5 ans | 2 neurologues, 1 biostatisticien |
-| Analyse | 12 mois | HPC cluster |
-| Rédaction | 6 mois | Équipe 8 personnes |
-
-## Budget Estimé : 1.2 M€
-
-## Critères de Succès
-
-• Identification ≥3 biomarqueurs prédictifs avec AUC >0.80
-• Publication dans revue IF>15
-• Dépôt 2 brevets méthodes
-
----
-*Rapport généré par GENESIS-ULTRA V3 — Science Hub Ultimate*`
-  };
-
-  const stepMap = {
-    'Étape 1 - Autonome': 'step1_auto',
-    'Étape 2 - Autonome': 'step2_auto',
-    'Étape 3 - Autonome': 'step3_auto',
-    'Étape 4 - Autonome': 'step4_auto',
-    'Étape 5 - Autonome': 'step5_auto',
-    'Étape 6 - Autonome': 'step6_auto',
-    'Étape 7 - Autonome': 'step7_auto',
-    'Étape 8 - Autonome': 'step8_auto',
-    'Étape 9 - Autonome': 'step9_auto',
-    'Étape 1 - Guidé': 'step1_guided',
-    'Étape 2 - Guidé': 'step2_guided',
-    'Étape 3 - Guidé': 'step3_guided',
-    'Étape 4 - Guidé': 'step4_guided',
-    'Étape 5 - Guidé': 'step5_guided',
-    'Étape 6 - Guidé': 'step6_guided',
-  };
-
-  return responses[stepMap[step]] || `**Analyse IA en cours — Domaine: ${domain}**\n\nRésultat généré avec succès par le moteur GENESIS-ULTRA. Les données ont été analysées et structurées selon les protocoles scientifiques standard. Score de confiance: ${(Math.random() * 2 + 7).toFixed(1)}/10.`;
 }
 
 // ══════════════════════════════════════════
@@ -1265,7 +877,7 @@ async function continueAutonomous() {
 
   const hyp = DB.hypotheses.find(h => h.id === autoState.hypothesisId);
   const prompt = buildAutoPrompt(step, hyp);
-  
+
   let response;
   try {
     response = await callMistralAI(prompt, 'Expert en recherche scientifique multistep.', `Étape ${step} - Autonome`);
@@ -1315,7 +927,7 @@ function buildAutoPrompt(step, hyp) {
     }
   }
   const context = prevSteps.length > 0 ? '\n\nCONTEXTE DES ÉTAPES PRÉCÉDENTES:\n' + prevSteps.join('\n\n') : '';
-  
+
   const prompts = {
     2: `ÉTAPE 2/9: Pour l'hypothèse suivante, identifie 10-15 articles scientifiques pertinents avec DOI, pertinence, et résumé.\nHypothèse: ${title}${context}`,
     3: `ÉTAPE 3/9: Analyse critique complète — points forts, faiblesses, contre-arguments, biais.\nHypothèse: ${title}${context}`,
@@ -1647,7 +1259,7 @@ async function addArticleModal() {
   const url = prompt('URL du flux RSS à ajouter :');
   if (!url) return;
   const cat = prompt('Catégorie (ex: biologie, physique...) :', 'general');
-  
+
   // Simulate adding RSS feed
   const fakeArticles = [
     { id: getNextId(DB.articles), title: `Article depuis ${url} — Étude récente sur ${cat}`, abstract: 'Cet article explore des découvertes récentes dans le domaine et propose de nouvelles perspectives méthodologiques.', source: url, published_date: new Date().toLocaleDateString('fr-FR'), relevance_score: 0.82, processed_by_ai: 1 },
@@ -1690,7 +1302,7 @@ async function generateExperimentFromAI() {
   const domain = domains[Math.floor(Math.random() * domains.length)];
   const prompt = `Génère un protocole d'expérience scientifique en ${domain} avec code PHP simple et code JS pour visualisation. Format structuré avec titre, protocole, code.`;
   const response = await callMistralAI(prompt, 'Expert en design expérimental et génération de code scientifique.', 'generate_experiment');
-  
+
   const exp = {
     id: getNextId(DB.experiments),
     title: `Simulation ${domain} — Expérience #${getNextId(DB.experiments)}`,
@@ -1837,5 +1449,441 @@ loadHomeStats();
 // Clés hardcodées dans MISTRAL_KEYS — pas besoin de localStorage pour les clés
 if (localStorage.getItem('default_model')) document.getElementById('default-model').value = localStorage.getItem('default_model');
 </script>
+</body>
+</html>
+
++++ index.php (修改后)
+<?php
+session_start();
+header('Content-Type: text/html; charset=utf-8');
+
+// Configuration sécurisée (clés dans le serveur uniquement)
+define('MISTRAL_KEYS', [
+    getenv('MISTRAL_KEY_1') ?: 'votre_cle_1_ici',
+    getenv('MISTRAL_KEY_2') ?: 'votre_cle_2_ici',
+    getenv('MISTRAL_KEY_3') ?: 'votre_cle_3_ici'
+]);
+
+// Initialisation SQLite
+$db = new SQLite3('historique_recherches.db');
+$db->exec("CREATE TABLE IF NOT EXISTS recherches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sujet TEXT,
+    date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+    etapes JSON,
+    statut TEXT,
+    article_final TEXT,
+    apps_generees JSON
+)");
+
+// Gestion des requêtes API
+function callMistralAPI($prompt, $systemPrompt = "Tu es un chercheur scientifique d'élite.") {
+    $keys = MISTRAL_KEYS;
+    $maxTentatives = count($keys) * 3;
+    $tentative = 0;
+    $keyIndex = 0;
+
+    while ($tentative < $maxTentatives) {
+        $tentative++;
+        $key = $keys[$keyIndex];
+
+        $ch = curl_init('https://api.mistral.ai/v1/chat/completions');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $key
+        ]);
+
+        $data = json_encode([
+            'model' => 'mistral-large-latest',
+            'messages' => [
+                ['role' => 'system', 'content' => $systemPrompt],
+                ['role' => 'user', 'content' => $prompt]
+            ],
+            'temperature' => 0.7,
+            'max_tokens' => 4096
+        ], JSON_UNESCAPED_UNICODE);
+
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && $response) {
+            $result = json_decode($response, true);
+            if (isset($result['choices'][0]['message']['content'])) {
+                return $result['choices'][0]['message']['content'];
+            }
+        }
+
+        // Rotation des clés
+        if ($httpCode === 429) {
+            sleep(10); // Rate limit
+        } else {
+            sleep(5);
+        }
+        $keyIndex = ($keyIndex + 1) % count($keys);
+    }
+
+    throw new Exception("Échec après $maxTentatives tentatives");
+}
+
+// Création de fichier PHP sécurisé
+function createPHPApp($filename, $code, $sujet) {
+    $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $filename);
+    $path = __DIR__ . '/apps/' . $safeName . '.php';
+
+    if (!is_dir(__DIR__ . '/apps')) {
+        mkdir(__DIR__ . '/apps', 0755, true);
+    }
+
+    // En-tête de sécurité
+    $secureCode = "<?php\n// Application générée automatiquement - Sujet: $sujet\n// Date: " . date('Y-m-d H:i:s') . "\n\n";
+    $secureCode .= "header('Content-Type: text/html; charset=utf-8');\n";
+    $secureCode .= "// Sandbox de sécurité - Limitation des fonctions dangereuses\n";
+    $secureCode .= "ini_set('display_errors', 0);\n";
+    $secureCode .= "ini_set('log_errors', 1);\n\n";
+    $secureCode .= $code;
+
+    file_put_contents($path, $secureCode);
+    return 'apps/' . $safeName . '.php';
+}
+
+// Traitement AJAX
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    header('Content-Type: application/json');
+
+    try {
+        $input = json_decode(file_get_contents('php://input'), true);
+
+        switch ($_POST['action']) {
+            case 'lancer_recherche':
+                $sujet = htmlspecialchars($input['sujet']);
+                $idRecherche = uniqid();
+
+                // Structure JSON stricte
+                $recherche = [
+                    'id' => $idRecherche,
+                    'sujet' => $sujet,
+                    'date' => date('c'),
+                    'etapes' => [],
+                    'apps' => [],
+                    'article_final' => null
+                ];
+
+                // Sauvegarde initiale
+                $stmt = $db->prepare('INSERT INTO recherches (sujet, etapes, statut) VALUES (:sujet, :etapes, :statut)');
+                $stmt->bindValue(':sujet', $sujet, SQLITE3_TEXT);
+                $stmt->bindValue(':etapes', json_encode($recherche), SQLITE3_TEXT);
+                $stmt->bindValue(':statut', 'en_cours', SQLITE3_TEXT);
+                $stmt->execute();
+
+                echo json_encode(['success' => true, 'id' => $idRecherche]);
+                exit;
+
+            case 'executer_etape':
+                $etape = $input['etape'];
+                $contexte = $input['contexte'] ?? '';
+
+                $prompts = [
+                    1 => "Génère une hypothèse révolutionnaire sur: {$input['sujet']}. Sois audacieux mais scientifiquement plausible.",
+                    2 => "Recherche bibliographique: trouve 10-15 articles scientifiques réels avec DOI valides liés à l'hypothèse.",
+                    3 => "Analyse critique approfondie: points forts, faiblesses, biais potentiels de l'hypothèse.",
+                    4 => "Conçois un protocole expérimental complet pour tester l'hypothèse.",
+                    5 => "Génère des prédictions quantitatives précises avec formules mathématiques.",
+                    6 => "Validation croisée avec les théories établies et contradictions potentielles.",
+                    7 => "Optimisation de l'hypothèse basée sur les analyses précédentes.",
+                    8 => "CRÉE UNE APPLICATION PHP FONCTIONNELLE qui teste réellement l'hypothèse via des calculs ou API. Code complet prêt à l'emploi.",
+                    9 => "Synthèse intermédiaire de toutes les découvertes."
+                ];
+
+                $systemPrompts = [
+                    8 => "Tu es un développeur PHP expert. Crée une application web complète, sécurisée et fonctionnelle qui implémente des tests réels de l'hypothèse. Utilise des formulaires, des calculs mathématiques, des graphiques si possible. Code autonome dans un seul fichier."
+                ];
+
+                $promptComplet = $prompts[$etape] . "\n\n" . $contexte;
+                $reponse = callMistralAPI($promptComplet, $systemPrompts[$etape] ?? "Tu es un chercheur scientifique d'élite.");
+
+                // Si étape 8, création du fichier
+                $appPath = null;
+                if ($etape == 8 && strpos($reponse, '<?php') !== false) {
+                    preg_match('/<\?php[\s\S]*?\?>/', $reponse, $matches);
+                    if (!empty($matches[0])) {
+                        $appPath = createPHPApp("test_{$input['sujet']}_etape8", $matches[0], $input['sujet']);
+                        $reponse .= "\n\n[APPLICATION CRÉÉE: $appPath]";
+                    }
+                }
+
+                echo json_encode([
+                    'success' => true,
+                    'contenu' => $reponse,
+                    'app_path' => $appPath
+                ]);
+                exit;
+
+            case 'generer_article_final':
+                $toutesEtapes = $input['etapes_completes'];
+
+                $promptArticle = "Rédige un ARTICLE DE PRESSE SCIENTIFIQUE MAGISTRAL basé sur TOUTES les étapes de recherche suivantes:\n\n{$toutesEtapes}\n\n" .
+                    "EXIGENCES:\n" .
+                    "- Titre accrocheur style 'Nature' ou 'Science'\n" .
+                    "- Résumé exécutif percutant\n" .
+                    "- Introduction contextualisant la révolution scientifique\n" .
+                    "- Méthodologie détaillée\n" .
+                    "- Résultats avec applications concrètes\n" .
+                    "- Intégration de l'application interactive créée\n" .
+                    "- Discussion sur l'impact sociétal\n" .
+                    "- Conclusion visionnaire\n" .
+                    "- Style journalistique de haut niveau, accessible mais rigoureux\n" .
+                    "- Longueur: 2000-3000 mots";
+
+                $article = callMistralAPI($promptArticle, "Tu es un journaliste scientifique primé du New York Times et de Nature.");
+
+                echo json_encode(['success' => true, 'article' => $article]);
+                exit;
+
+            case 'sauvegarder_recherche':
+                $stmt = $db->prepare('UPDATE recherches SET etapes = :etapes, article_final = :article, apps_generees = :apps WHERE id = :id');
+                $stmt->bindValue(':etapes', json_encode($input['etapes']), SQLITE3_TEXT);
+                $stmt->bindValue(':article', $input['article'], SQLITE3_TEXT);
+                $stmt->bindValue(':apps', json_encode($input['apps']), SQLITE3_TEXT);
+                $stmt->bindValue(':id', $input['id'], SQLITE3_TEXT);
+                $stmt->execute();
+
+                echo json_encode(['success' => true]);
+                exit;
+
+            case 'charger_historique':
+                $result = $db->query('SELECT id, sujet, date_creation, statut FROM recherches ORDER BY date_creation DESC LIMIT 20');
+                $historique = [];
+                while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                    $historique[] = $row;
+                }
+                echo json_encode(['success' => true, 'historique' => $historique]);
+                exit;
+        }
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['error' => $e->getMessage()]);
+    }
+    exit;
+}
+?>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moteur de Recherche Scientifique Autonome</title>
+    <style>
+        :root { --primary: #2563eb; --success: #16a34a; --bg: #f8fafc; }
+        body { font-family: system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: var(--bg); }
+        .container { background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: var(--primary); text-align: center; }
+        .step { border-left: 4px solid var(--primary); padding: 15px; margin: 20px 0; background: #f1f5f9; border-radius: 0 8px 8px 0; }
+        .step.completed { border-color: var(--success); }
+        button { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        textarea { width: 100%; min-height: 100px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .app-link { display: block; background: var(--success); color: white; padding: 10px; border-radius: 6px; text-decoration: none; margin-top: 10px; }
+        #articleFinal { background: #fffbeb; border: 2px solid #fbbf24; padding: 20px; border-radius: 8px; margin-top: 30px; }
+        .historique-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .historique-item:hover { background: #f0f9ff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 Moteur de Recherche Scientifique Autonome</h1>
+
+        <div style="display: flex; gap: 20px; margin-bottom: 30px;">
+            <div style="flex: 2;">
+                <label><strong>Sujet de recherche:</strong></label>
+                <textarea id="sujet" placeholder="Ex: Nouvelle théorie sur la fusion froide catalysée par le palladium..."></textarea>
+                <button onclick="lancerRecherche()" style="margin-top: 10px; width: 100%;">🚀 Lancer la recherche complète</button>
+            </div>
+            <div style="flex: 1;">
+                <label><strong>Historique:</strong></label>
+                <div id="historiqueList" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px;"></div>
+            </div>
+        </div>
+
+        <div id="progression" style="display: none;">
+            <h2>Progression en temps réel</h2>
+            <div id="etapesContainer"></div>
+            <button id="btnArticleFinal" onclick="genererArticleFinal()" style="display: none; margin-top: 20px; background: #dc2626; width: 100%;">
+                📰 GÉNÉRER L'ARTICLE DE PRESSE MAGISTRAL
+            </button>
+        </div>
+
+        <div id="articleFinal" style="display: none;">
+            <h2>📰 Article de Presse Scientifique</h2>
+            <div id="articleContent" style="line-height: 1.8; white-space: pre-wrap;"></div>
+        </div>
+    </div>
+
+    <script>
+        let rechercheEnCours = null;
+        let etapesData = {};
+
+        async function lancerRecherche() {
+            const sujet = document.getElementById('sujet').value.trim();
+            if (!sujet) return alert('Veuillez entrer un sujet');
+
+            document.getElementById('progression').style.display = 'block';
+            document.getElementById('etapesContainer').innerHTML = '<div class="step"><span class="loading"></span> Initialisation...</div>';
+
+            const res = await fetch('index.php?action=lancer_recherche', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sujet})
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                rechercheEnCours = data.id;
+                executerToutesLesEtapes(sujet);
+            }
+        }
+
+        async function executerToutesLesEtapes(sujet) {
+            const container = document.getElementById('etapesContainer');
+            container.innerHTML = '';
+
+            for (let i = 1; i <= 9; i++) {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = 'step';
+                stepDiv.id = `step${i}`;
+                stepDiv.innerHTML = `<strong>Étape ${i}/9</strong>: <span class="loading"></span> En cours...`;
+                container.appendChild(stepDiv);
+
+                // Construire le contexte des étapes précédentes
+                let contexte = '';
+                for (let j = 1; j < i; j++) {
+                    if (etapesData[`step${j}`]) {
+                        contexte += `ÉTAPES ${j}: ${etapesData[`step${j}`].substring(0, 500)}...\n\n`;
+                    }
+                }
+
+                try {
+                    const res = await fetch('index.php?action=executer_etape', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            action: 'executer_etape',
+                            etape: i,
+                            sujet: sujet,
+                            contexte: contexte
+                        })
+                    });
+
+                    const data = await res.json();
+
+                    if (data.success) {
+                        etapesData[`step${i}`] = data.contenu;
+                        stepDiv.classList.add('completed');
+                        stepDiv.innerHTML = `<strong>Étape ${i}/9</strong>: ✅ Terminée<br><pre style="background:#f8fafc;padding:10px;border-radius:4px;overflow-x:auto;">${escapeHtml(data.contenu)}</pre>`;
+
+                        if (data.app_path) {
+                            const appLink = document.createElement('a');
+                            appLink.href = data.app_path;
+                            appLink.target = '_blank';
+                            appLink.className = 'app-link';
+                            appLink.textContent = '🧪 Tester l\'application générée';
+                            stepDiv.appendChild(appLink);
+                        }
+                    }
+                } catch (err) {
+                    stepDiv.innerHTML += `<br><strong style="color:red">Erreur: ${err.message}</strong>`;
+                }
+
+                // Pause entre les étapes
+                if (i < 9) await new Promise(r => setTimeout(r, 2000));
+            }
+
+            document.getElementById('btnArticleFinal').style.display = 'block';
+            sauvegarderRecherche();
+        }
+
+        async function genererArticleFinal() {
+            const btn = document.getElementById('btnArticleFinal');
+            btn.disabled = true;
+            btn.textContent = '⏳ Rédaction en cours...';
+
+            let toutesEtapes = '';
+            for (let i = 1; i <= 9; i++) {
+                if (etapesData[`step${i}`]) {
+                    toutesEtapes += `=== ÉTAPE ${i} ===\n${etapesData[`step${i}`]}\n\n`;
+                }
+            }
+
+            const res = await fetch('index.php?action=generer_article_final', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({etapes_completes: toutesEtapes})
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                document.getElementById('articleFinal').style.display = 'block';
+                document.getElementById('articleContent').textContent = data.article;
+
+                // Sauvegarde finale
+                await fetch('index.php?action=sauvegarder_recherche', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id: rechercheEnCours,
+                        etapes: etapesData,
+                        article: data.article,
+                        apps: Object.keys(etapesData).filter(k => k.includes('app'))
+                    })
+                });
+
+                btn.textContent = '✅ Article généré avec succès!';
+            }
+        }
+
+        function sauvegarderRecherche() {
+            fetch('index.php?action=sauvegarder_recherche', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    id: rechercheEnCours,
+                    etapes: etapesData,
+                    article: null,
+                    apps: []
+                })
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Charger l'historique au démarrage
+        async function chargerHistorique() {
+            const res = await fetch('index.php?action=charger_historique', {method: 'POST'});
+            const data = await res.json();
+            const list = document.getElementById('historiqueList');
+            list.innerHTML = '';
+
+            data.historique.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'historique-item';
+                div.textContent = `${item.sujet.substring(0, 40)}... (${item.date_creation})`;
+                div.onclick = () => document.getElementById('sujet').value = item.sujet;
+                list.appendChild(div);
+            });
+        }
+
+        chargerHistorique();
+    </script>
 </body>
 </html>
