@@ -773,8 +773,8 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
 // AUTONOMOUS MODE
 // ══════════════════════════════════════════
 const AUTO_STEPS = [
-  'Hypothèse', 'Bibliographie', 'Critique', 'Protocole',
-  'Prédictions', 'Validation', 'Optimisation', 'Code', 'Rapport'
+  'Hypothèse', 'Biblio+RSS', 'Critique', 'Protocole',
+  'Prédictions', 'Validation', 'Article'
 ];
 
 function buildStepsTrack(containerId, steps, currentStep, type) {
@@ -811,112 +811,171 @@ async function startAutonomous() {
   const domain = document.getElementById('auto-domain').value;
   const topic = document.getElementById('auto-topic').value;
   autoState = { step: 0, hypothesisId: null, domain, topic };
-
+  
   document.getElementById('auto-init-panel').style.display = 'none';
   document.getElementById('auto-workflow').style.display = 'block';
-
+  
   buildStepsTrack('auto-steps-track', AUTO_STEPS, 1, 'auto');
   document.getElementById('auto-loader').classList.add('active');
   document.getElementById('auto-results-area').innerHTML = '';
   document.getElementById('auto-actions').style.display = 'none';
-  document.getElementById('auto-loader-text').textContent = 'GENESIS-ULTRA v9.1 — Génération de l\'hypothèse initiale...';
-
-  const prompt = `ÉTAPE 1/9: Tu es GENESIS-ULTRA v9.1. Génère une hypothèse scientifique révolutionnaire et testable.
-Domaine: ${domain}
-Sujet: ${topic}
-L'hypothèse doit être innovante, falsifiable, basée sur des principes solides, potentiellement disruptive.`;
-
-  let response;
-  try {
-    response = await callMistralAI(prompt, 'Expert en génération d\'hypothèses scientifiques révolutionnaires.', 'Étape 1 - Autonome');
-  } catch (err) {
-    document.getElementById('auto-loader').classList.remove('active');
-    toast('Erreur API Mistral: ' + err.message, 'error');
-    resetAutonomous();
-    return;
-  }
-
-  const hyp = {
-    id: getNextId(DB.hypotheses),
-    title: extractFirstLine(response),
-    description: response.substring(0, 500),
-    domain, topic,
-    workflow_mode: 'autonomous',
-    status: 'in_progress',
-    steps_completed: 1,
-    total_steps: 9,
-    confidence_score: 0.84,
-    sources_count: 0,
-    created_at: new Date().toLocaleString('fr-FR'),
-    full_responses: { step1: response }
-  };
-  DB.hypotheses.unshift(hyp);
-  saveDB();
-  autoState.hypothesisId = hyp.id;
-  autoState.step = 1;
-
-  document.getElementById('auto-loader').classList.remove('active');
-  displayAutoResult(response, 'Étape 1/9 — Génération d\'Hypothèse', '◈');
-  buildStepsTrack('auto-steps-track', AUTO_STEPS, 1, 'auto');
-  document.getElementById('auto-step-title').textContent = 'Étape 1/9 — Hypothèse générée';
-  document.getElementById('auto-step-badge').textContent = 'Complétée ✓';
-  document.getElementById('auto-actions').style.display = 'flex';
-  document.getElementById('auto-next-btn').textContent = 'Étape 2 : Bibliographie →';
-  loadHomeStats();
+  document.getElementById('auto-loader-text').textContent = 'GENESIS-ULTRA v10.0 — Initialisation du workflow autonome...';
+  
+  // Lancement automatique de toutes les étapes en séquence
+  await executeAllStepsAutonomous(domain, topic);
 }
 
-async function continueAutonomous() {
-  if (autoState.step >= 9) return;
-  autoState.step++;
-  const step = autoState.step;
-
-  document.getElementById('auto-loader').classList.add('active');
-  document.getElementById('auto-actions').style.display = 'none';
-  document.getElementById('auto-loader-text').textContent = `Exécution étape ${step}/9 — ${AUTO_STEPS[step-1]}...`;
-  buildStepsTrack('auto-steps-track', AUTO_STEPS, step, 'auto');
-
-  const hyp = DB.hypotheses.find(h => h.id === autoState.hypothesisId);
-  const prompt = buildAutoPrompt(step, hyp);
-
-  let response;
+async function executeAllStepsAutonomous(domain, topic) {
+  const TOTAL_STEPS = 7;
+  let hyp = null;
+  
   try {
-    response = await callMistralAI(prompt, 'Expert en recherche scientifique multistep.', `Étape ${step} - Autonome`);
-  } catch (err) {
+    for (let step = 1; step <= TOTAL_STEPS; step++) {
+      autoState.step = step;
+      
+      // Mise à jour UI
+      document.getElementById('auto-loader-text').textContent = `Exécution étape ${step}/${TOTAL_STEPS} — ${AUTO_STEPS[step-1]}...`;
+      buildStepsTrack('auto-steps-track', AUTO_STEPS, step, 'auto');
+      
+      // Récupérer l'hypothèse existante ou créer la première
+      if (step === 1) {
+        const prompt = buildAutoPrompt(step, { domain, topic }, getServerConfig());
+        let response = await callMistralAI(prompt, 'Expert en génération d\'hypothèses scientifiques révolutionnaires.', `Étape ${step} - Autonome`);
+        
+        hyp = {
+          id: getNextId(DB.hypotheses),
+          title: extractFirstLine(response),
+          description: response.substring(0, 500),
+          domain, topic,
+          workflow_mode: 'autonomous',
+          status: 'in_progress',
+          steps_completed: 1,
+          total_steps: TOTAL_STEPS,
+          confidence_score: 0.84,
+          sources_count: 0,
+          created_at: new Date().toLocaleString('fr-FR'),
+          full_responses: { step1: response },
+          generated_apps: [],
+          execution_results: {}
+        };
+        DB.hypotheses.unshift(hyp);
+        saveDB();
+        autoState.hypothesisId = hyp.id;
+      } else {
+        hyp = DB.hypotheses.find(h => h.id === autoState.hypothesisId);
+        const prompt = buildAutoPrompt(step, hyp, getServerConfig());
+        let response = await callMistralAI(prompt, 'Expert en recherche scientifique multistep avec exécution réelle.', `Étape ${step} - Autonome`);
+        
+        hyp.steps_completed = step;
+        if (!hyp.full_responses) hyp.full_responses = {};
+        hyp.full_responses[`step${step}`] = response;
+        
+        // Si l'étape a généré du code PHP, l'exécuter réellement
+        const phpCode = extractPHPCode(response);
+        if (phpCode) {
+          const execResult = await executePHPCode(phpCode, step, hyp.id);
+          hyp.execution_results[`step${step}`] = execResult;
+          if (execResult.app_name) {
+            hyp.generated_apps.push(execResult.app_name);
+          }
+        }
+        
+        if (step === TOTAL_STEPS) hyp.status = 'completed';
+        saveDB();
+      }
+      
+      // Afficher le résultat intermédiaire
+      displayAutoResult(
+        hyp.full_responses[`step${step}`], 
+        `Étape ${step}/${TOTAL_STEPS} — ${AUTO_STEPS[step-1]}`, 
+        '◈'
+      );
+      
+      // Pause courte entre les étapes pour éviter rate limiting
+      if (step < TOTAL_STEPS) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
+    
+    // Workflow terminé avec succès
     document.getElementById('auto-loader').classList.remove('active');
-    toast('Erreur API Mistral: ' + err.message, 'error');
-    document.getElementById('auto-actions').style.display = 'flex';
-    return;
-  }
-
-  if (hyp) {
-    hyp.steps_completed = step;
-    if (step === 9) hyp.status = 'completed';
-    if (!hyp.full_responses) hyp.full_responses = {};
-    hyp.full_responses[`step${step}`] = response;
-    saveDB();
-  }
-
-  document.getElementById('auto-loader').classList.remove('active');
-  displayAutoResult(response, `Étape ${step}/9 — ${AUTO_STEPS[step-1]}`, '◈');
-  buildStepsTrack('auto-steps-track', AUTO_STEPS, step, 'auto');
-  document.getElementById('auto-step-title').textContent = `Étape ${step}/9 — ${AUTO_STEPS[step-1]}`;
-
-  if (step >= 9) {
     document.getElementById('auto-step-badge').textContent = '✅ Recherche complète!';
     document.getElementById('auto-step-badge').style.background = 'rgba(16,185,129,0.2)';
     document.getElementById('auto-step-badge').style.color = 'var(--success)';
-    document.getElementById('auto-next-btn').textContent = '✅ Recherche Terminée';
+    document.getElementById('auto-next-btn').textContent = '✅ Article Publié';
     document.getElementById('auto-next-btn').disabled = true;
-    document.getElementById('auto-next-btn').style.opacity = '0.5';
-    toast('Recherche autonome complète en 9 étapes!', 'success');
-  } else {
-    document.getElementById('auto-step-badge').textContent = `${step}/9 complété`;
-    document.getElementById('auto-next-btn').textContent = `Étape ${step+1} : ${AUTO_STEPS[step]} →`;
-    document.getElementById('auto-next-btn').disabled = false;
+    document.getElementById('auto-actions').style.display = 'flex';
+    
+    // Notification utilisateur
+    toast(`🎉 Article scientifique complet généré avec ${hyp.generated_apps.length} applications exécutées!`, 'success');
+    
+    // Mettre à jour les stats
+    loadHomeStats();
+    
+    // Redirection automatique vers la bibliothèque après 3 secondes
+    setTimeout(() => {
+      showPage('library');
+      toast('L\'article est maintenant disponible dans la bibliothèque', 'success');
+    }, 3000);
+    
+  } catch (err) {
+    document.getElementById('auto-loader').classList.remove('active');
+    toast('Erreur lors de l\'exécution automatique: ' + err.message, 'error');
+    console.error(err);
+    resetAutonomous();
   }
-  document.getElementById('auto-actions').style.display = 'flex';
-  loadHomeStats();
 }
+
+// Fonction pour exécuter réellement le code PHP généré
+async function executePHPCode(phpCode, step, hypId) {
+  // Envoi du code PHP au serveur pour exécution sécurisée
+  const response = await fetch('api_execute.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code: phpCode,
+      step: step,
+      hypothesis_id: hypId
+    })
+  });
+  
+  if (!response.ok) {
+    return { success: false, error: 'Échec exécution PHP' };
+  }
+  
+  const result = await response.json();
+  return {
+    success: true,
+    app_name: result.app_name || `app_step${step}.php`,
+    output: result.output || '',
+    data: result.data || {},
+    execution_time: result.execution_time || 0
+  };
+}
+
+// Extraire le code PHP des réponses de l'IA
+function extractPHPCode(response) {
+  const phpMatch = response.match(/```php\s*([\s\S]*?)\s*```/);
+  return phpMatch ? phpMatch[1] : null;
+}
+
+// Configuration complète du serveur
+function getServerConfig() {
+  return {
+    php_version: '8.x',
+    sqlite_enabled: true,
+    gd_enabled: true,
+    curl_enabled: true,
+    max_execution_time: 120,
+    memory_limit: '256M',
+    writable_dirs: ['/apps/', '/data/', '/articles/'],
+    available_apis: ['arXiv', 'PubMed', 'CrossRef', 'NASA ADS', 'SSRN', 'bioRxiv', 'Semantic Scholar'],
+    db_path: './sciencehub.db',
+    apps_path: './apps/',
+    articles_path: './articles/'
+  };
+}
+
 
 function buildAutoPrompt(step, hyp, serverConfig = {}) {
   const title = hyp?.title || 'Hypothèse en cours';
@@ -956,7 +1015,7 @@ function buildAutoPrompt(step, hyp, serverConfig = {}) {
 `;
 
   const prompts = {
-    1: `🎯 ÉTAPE 1/9 — GÉNÉRATION D'HYPOTHÈSE RÉVOLUTIONNAIRE
+    1: `🎯 ÉTAPE 1/7 — GÉNÉRATION D'HYPOTHÈSE RÉVOLUTIONNAIRE
 
 Tu es GENESIS-ULTRA v10.0, un système d'IA de niveau Nobel spécialisé dans la découverte scientifique disruptive.
 
@@ -985,7 +1044,7 @@ ${serverAwareness}
 
 Commence maintenant. Sois audacieux mais rigoureux.`,
 
-    2: `📚 ÉTAPE 2/9 — RECHERCHE BIBLIOGRAPHIQUE INTELLIGENTE AVEC AUTO-ÉVALUATION DES FLUX
+    2: `📚 ÉTAPE 2/7 — RECHERCHE BIBLIOGRAPHIQUE INTELLIGENTE AVEC AUTO-ÉVALUATION DES FLUX
 
 Tu es maintenant un bibliothécaire scientifique expert couplé à un système d'évaluation de flux de données.
 
@@ -1026,7 +1085,7 @@ ${serverAwareness}
 
 IMPORTANT: Ne te contente pas de lister — CRÉE l'outil d'évaluation.`,
 
-    3: `⚖️ ÉTAPE 3/9 — ANALYSE CRITIQUE PROFONDE ET CONTRE-ARGUMENTATION RADICALE
+    3: `⚖️ ÉTAPE 3/7 — ANALYSE CRITIQUE PROFONDE ET CONTRE-ARGUMENTATION RADICALE
 
 Tu es un "Devil's Advocate" scientifique de renommée mondiale, connu pour démolir les hypothèses fragiles.
 
@@ -1071,7 +1130,7 @@ ${serverAwareness}
 
 Sois brutal mais constructif. Une hypothèse qui survit à cette étape mérite d'être testée.`,
 
-    4: `🔬 ÉTAPE 4/9 — PROTOCOLE EXPÉRIMENTAL COMPLET ET REPRODUCTIBLE
+    4: `🔬 ÉTAPE 4/7 — PROTOCOLE EXPÉRIMENTAL COMPLET ET REPRODUCTIBLE
 
 Tu es un directeur de laboratoire d'élite avec 30 ans d'expérience en design expérimental.
 
@@ -1127,7 +1186,7 @@ ${serverAwareness}
 
 Ce protocole doit être assez solide pour être soumis à Nature Methods.`,
 
-    5: `📊 ÉTAPE 5/9 — PRÉDICTIONS QUANTITATIVES PRÉCISES AVEC MODÉLISATION MATHÉMATIQUE
+    5: `📊 ÉTAPE 5/7 — PRÉDICTIONS QUANTITATIVES PRÉCISES AVEC MODÉLISATION MATHÉMATIQUE
 
 Tu es un physicien-mathématicien expert en modélisation prédictive.
 
@@ -1172,7 +1231,7 @@ ${serverAwareness}
 
 Les prédictions doivent être assez précises pour qu'un mauvais résultat soit clairement identifiable.`,
 
-    6: `🔗 ÉTAPE 6/9 — VALIDATION CROISÉE ET INTÉGRATION THÉORIQUE
+    6: `🔗 ÉTAPE 6/7 — VALIDATION CROISÉE ET INTÉGRATION THÉORIQUE
 
 Tu es un synthétiseur de connaissances transdisciplinaires.
 
@@ -1217,124 +1276,13 @@ ${serverAwareness}
 
 Une hypothèse isolée meurt vite. Montre comment elle s'enracine dans le savoir existant tout en l'étendant.`,
 
-    7: `⚡ ÉTAPE 7/9 — OPTIMISATION RADICALE ET ITÉRATION
-
-Tu es un ingénieur en optimisation scientifique (méthode Taguchi + approche bayésienne).
-
-HYPOTHÈSE ACTUELLE: ${title}
-
-MISSION: Améliorer, affiner, optimiser TOUT le processus de recherche.
-
-OPTIMISATIONS À PRODUIRE:
-
-1. **HYPOTHÈSE AFFINÉE**:
-   - Reformulation après apprentissage des étapes 1-6
-   - Version 2.0 plus précise, plus testable, plus robuste
-
-2. **PROTOCOLE OPTIMISÉ**:
-   - Réduction des coûts (comment faire 10x moins cher ?)
-   - Réduction du temps (comment aller 5x plus vite ?)
-   - Augmentation de la puissance statistique
-
-3. **RÉDUCTION DES INCERTITUDES**:
-   - Quelles sources de bruit éliminer ?
-   - Comment améliorer le rapport signal/bruit ?
-
-4. **ITÉRATIONS RAPIDES**:
-   - Design d'expériences "quick & dirty" pour validation rapide
-   - Boucles de feedback courtes
-
-5. **SCALE-UP**:
-   - Comment passer du pilote à grande échelle ?
-   - Infrastructure nécessaire
-
-6. **MICRO-APP À CRÉER** (fichier: optimizer.php):
-   - Outil d'optimisation multi-paramètres
-   - Simulation de compromis coût/temps/précision
-   - Recommandations algorithmiques
-   - Visualisation des fronts de Pareto
-
-7. **NOUVELLES HYPOTHÈSES DÉRIVÉES**:
-   - Quelles hypothèses secondaires émergent ?
-   - Arbres de recherche futurs
-
-${fullContext}
-${metaInstructions}
-${serverAwareness}
-
-L'optimisation est ce qui sépare une idée brillante d'une découverte réelle.`,
-
-    8: `💻 ÉTAPE 8/9 — CRÉATION D'APPLICATIONS SCIENTIFIQUES EXÉCUTABLES
-
-Tu es un développeur full-stack scientifique expert (PHP, JS, SQLite, visualisation).
-
-HYPOTHÈSE À IMPLÉMENTER: ${title}
-
-MISSION CRITIQUE: CRÉER DE VRAIES APPLICATIONS PHP QUI TESTENT L'HYPOTHÈSE.
-
-CONTRAINTES TECHNIQUES (basé sur la config serveur):
-- PHP 8.x avec SQLite3
-- Pas de frameworks lourds, code vanilla optimisé
-- Visualisations: Chart.js via CDN ou GD library
-- Stockage: fichiers JSON + SQLite
-- Sécurité: validation inputs, pas de shell_exec
-
-APPLICATIONS À GÉNÉRER (une par ligne, code COMPLET):
-
-1. **simulateur_core.php** — Simulation numérique principale
-   - Implémente le modèle mathématique de l'étape 5
-   - Interface avec paramètres modifiables
-   - Résultats en temps réel avec graphiques
-   - Export des données
-
-2. **data_analyzer.php** — Analyseur de données expérimentales
-   - Upload de CSV/JSON
-   - Tests statistiques automatiques
-   - Visualisations comparatives
-   - Détection d'anomalies
-
-3. **protocol_runner.php** — Exécuteur de protocole interactif
-   - Guide pas-à-pas l'expérimentateur
-   - Enregistre les données au fur et à mesure
-   - Alertes si déviation du protocole
-
-4. **hypothesis_dashboard.php** — Dashboard global
-   - Vue d'ensemble de toutes les métriques
-   - État d'avancement des tests
-   - Alertes et notifications
-
-POUR CHAQUE APPLICATION:
-- Code PHP COMPLET et AUTONOME (un seul fichier par app)
-- Commentaires détaillés
-- Gestion d'erreurs robuste
-- UI propre et intuitive (CSS inclus)
-- Données de démonstration intégrées
-
-FORMAT DE RÉPONSE:
-Pour chaque application:
-\`\`\`php
-<?php
-// Nom: [nom_du_fichier.php]
-// Description: [...]
-// Date: [date]
-
-[TOUT LE CODE ICI, PRÊT À ÊTRE COPIÉ-COLLÉ]
-?>
-\`\`\`
-
-${fullContext}
-${metaInstructions}
-${serverAwareness}
-
-IMPORTANT: Le code doit être 100% fonctionnel. Teste-le mentalement ligne par ligne.`,
-
-    9: `📜 ÉTAPE 9/9 — ARTICLE SCIENTIFIQUE FINAL DE NIVEAU NATURE/SCIENCE
+    7: `📜 ÉTAPE 7/7 — ARTICLE SCIENTIFIQUE FINAL DE NIVEAU NATURE/SCIENCE
 
 Tu es un rédacteur scientifique d'élite, auteur de publications dans Nature, Science, Cell.
 
 HYPOTHÈSE ET TRAVAUX COMPLÉTS: ${title}
 
-MISSION: Rédiger L'ARTICLE DÉFINITIF qui présente toute la recherche.
+MISSION: Rédiger L'ARTICLE DÉFINITIF qui présente toute la recherche, incluant les résultats des micro-apps exécutées.
 
 STRUCTURE EXIGÉE (standard Nature):
 
@@ -1349,56 +1297,59 @@ STRUCTURE EXIGÉE (standard Nature):
    - Conclusion (1 phrase sur l'impact)
 
 4. **INTRODUCTION** (800-1000 mots):
-   - Contexte et état de l'art
-   - Gap dans les connaissances
-   - Hypothèse proposée
-   - Approche générale
+   - Contexte général
+   - État de l'art critique
+   - Gap identifié
+   - Notre approche
 
-5. **RESULTS** (1500-2000 mots):
-   - Sous-sections thématiques
-   - Figures décrites précisément (Figure 1, 2, 3...)
-   - Données chiffrées avec stats
-   - Intégration des résultats des micro-apps
+5. **METHODS** (détail reproductible):
+   - Design expérimental
+   - Matériel
+   - Procédures
+   - Analyses statistiques
+   - Références aux micro-apps créées (avec URLs)
 
-6. **DISCUSSION** (1200-1500 mots):
+6. **RESULTS** (basé sur les exécutions réelles des apps):
+   - Données simulées/expérimentales
+   - Figures et tableaux (décris-les précisément)
+   - Résultats statistiques
+
+7. **DISCUSSION** (profonde et honnête):
    - Interprétation des résultats
    - Comparaison avec littérature
-   - Limitations honnêtes
+   - Limites explicites
    - Implications théoriques et pratiques
 
-7. **METHODS** (1000-1200 mots):
-   - Protocole reproductible
-   - Analyses statistiques
-   - Codes et données disponibles (liens vers apps)
+8. **CONCLUSION** (impact et futur):
+   - Messages clés (3 bullets)
+   - Recherches futures
+   - Appels à l'action
 
-8. **CONCLUSION** (300 mots):
-   - Synthèse des apports
-   - Perspectives futures
-   - Appel à la communauté
-
-9. **REFERENCES** (25-40 références format Nature):
-   - Toutes avec DOI
-   - Mélange classique + préprints récents
+9. **REFERENCES** (toutes avec DOI, format Vancouver)
 
 10. **ACKNOWLEDGEMENTS & COMPETING INTERESTS**
 
-11. **EXTENDED DATA** (description des figures supplémentaires)
+11. **DATA AVAILABILITY**:
+    - Liens vers les micro-apps déployées
+    - Données brutes dans SQLite
+    - Code source complet
 
-12. **CODE & DATA AVAILABILITY**:
-    - Liste des micro-apps créées avec URLs
-    - Jeux de données générés
-    - Dépôt GitHub suggéré
-
-BONUS: Inclure un "BOX" pédagogique expliquant un concept clé au grand public.
+INCLUSIONS OBLIGATOIRES:
+- ✅ Liens cliquables vers TOUTES les micro-apps créées (rss_evaluator.php, critique_simulator.php, protocol_designer.php, prediction_modeler.php, theory_mapper.php)
+- ✅ Historique complet des 7 étapes avec prompts originaux
+- ✅ Résultats d'exécution réels des applications
+- ✅ Données brutes accessibles via interface SQLite
+- ✅ Méthodologie détaillée et reproductible
 
 ${fullContext}
 ${metaInstructions}
 ${serverAwareness}
 
-STYLE: Rigoureux, clair, impactant. Chaque phrase doit apporter de l'information. Zéro remplissage.
-
-Cet article doit donner envie à un reviewer de dire "YES, PUBLIER MAINTENANT".`
+Cet article doit être PRÊT À SOUMETTRE. Chaque affirmation doit être soutenue par des données ou des références. Les micro-apps créées doivent être fonctionnelles et testées.`
   };
+
+  return prompts[step] || `Étape ${step}: Analyse avancée de: ${title}`;
+}
 
   return prompts[step] || `Étape ${step}: Analyse avancée de: ${title}`;
 }
