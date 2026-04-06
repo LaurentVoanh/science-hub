@@ -693,6 +693,9 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
     tokens_used: 0
   };
 
+  // Timeout étendu à 120 secondes pour les réponses longues
+  const CONTROLLER_TIMEOUT = 120000;
+  
   // Rotation des 3 clés — essaie chacune en cas d'échec
   let lastError = '';
   for (let attempt = 0; attempt < MISTRAL_KEYS.length; attempt++) {
@@ -701,6 +704,9 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
     logEntry.model_used = MISTRAL_MODEL + ' [key' + (keyIdx + 1) + ']';
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), CONTROLLER_TIMEOUT);
+      
       const response = await fetch(MISTRAL_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -716,10 +722,13 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
             },
             { role: 'user', content: prompt }
           ],
-          max_tokens: 4096,
+          max_tokens: 8192,
           temperature: 0.7
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -744,14 +753,15 @@ async function callMistralAI(prompt, systemMsg, stepLabel) {
     }
   }
 
-  // Toutes les clés ont échoué → fallback simulation locale
-  console.warn('Mistral API indisponible (' + lastError + ') — Mode simulation activé');
+  // TOUTES LES CLÉS ONT ÉCHOUÉ — PAS DE FALLBACK SIMULÉ
+  // On lance une erreur critique pour informer l'utilisateur
+  console.error('ÉCHEC CRITIQUE: Toutes les clés API Mistral ont échoué (' + lastError + ')');
   logEntry.success = 0;
-  logEntry.model_used = 'simulation [fallback]';
+  logEntry.model_used = 'ECHEC_API';
   DB.aiLogs.unshift(logEntry);
   saveDB();
-  await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
-  return generateSimulatedResponse(prompt, systemMsg, stepLabel);
+  
+  throw new Error('API Mistral indisponible après 3 tentatives. Vérifiez vos clés API dans Paramètres. Erreur: ' + lastError);
 }
 
 function generateSimulatedResponse(prompt, system, step) {
@@ -1196,7 +1206,15 @@ Domaine: ${domain}
 Sujet: ${topic}
 L'hypothèse doit être innovante, falsifiable, basée sur des principes solides, potentiellement disruptive.`;
 
-  const response = await callMistralAI(prompt, 'Expert en génération d\'hypothèses scientifiques révolutionnaires.', 'Étape 1 - Autonome');
+  let response;
+  try {
+    response = await callMistralAI(prompt, 'Expert en génération d\'hypothèses scientifiques révolutionnaires.', 'Étape 1 - Autonome');
+  } catch (err) {
+    document.getElementById('auto-loader').classList.remove('active');
+    toast('Erreur API Mistral: ' + err.message, 'error');
+    resetAutonomous();
+    return;
+  }
 
   const hyp = {
     id: getNextId(DB.hypotheses),
@@ -1239,7 +1257,16 @@ async function continueAutonomous() {
 
   const hyp = DB.hypotheses.find(h => h.id === autoState.hypothesisId);
   const prompt = buildAutoPrompt(step, hyp);
-  const response = await callMistralAI(prompt, 'Expert en recherche scientifique multistep.', `Étape ${step} - Autonome`);
+  
+  let response;
+  try {
+    response = await callMistralAI(prompt, 'Expert en recherche scientifique multistep.', `Étape ${step} - Autonome`);
+  } catch (err) {
+    document.getElementById('auto-loader').classList.remove('active');
+    toast('Erreur API Mistral: ' + err.message, 'error');
+    document.getElementById('auto-actions').style.display = 'flex';
+    return;
+  }
 
   if (hyp) {
     hyp.steps_completed = step;
@@ -1273,15 +1300,23 @@ async function continueAutonomous() {
 
 function buildAutoPrompt(step, hyp) {
   const title = hyp?.title || 'Hypothèse en cours';
+  const prevSteps = [];
+  for (let i = 1; i < step; i++) {
+    if (hyp.full_responses && hyp.full_responses[`step${i}`]) {
+      prevSteps.push(`ÉTAPE ${i}: ${hyp.full_responses[`step${i}`].substring(0, 500)}...`);
+    }
+  }
+  const context = prevSteps.length > 0 ? '\n\nCONTEXTE DES ÉTAPES PRÉCÉDENTES:\n' + prevSteps.join('\n\n') : '';
+  
   const prompts = {
-    2: `ÉTAPE 2/9: Pour l'hypothèse suivante, identifie 10-15 articles scientifiques pertinents avec DOI, pertinence, et résumé.\nHypothèse: ${title}`,
-    3: `ÉTAPE 3/9: Analyse critique complète — points forts, faiblesses, contre-arguments, biais.\nHypothèse: ${title}`,
-    4: `ÉTAPE 4/9: Protocole expérimental complet avec matériel, étapes, contrôles, méthodes d'analyse.\nHypothèse: ${title}`,
-    5: `ÉTAPE 5/9: Prédictions quantitatives avec intervalles de confiance et scénarios alternatifs.\nHypothèse: ${title}`,
-    6: `ÉTAPE 6/9: Validation croisée avec théories établies, incohérences, domaines d'application.\nHypothèse: ${title}`,
-    7: `ÉTAPE 7/9: Optimisation — hypothèse affinée, protocole amélioré, réduction coûts/temps.\nHypothèse: ${title}`,
-    8: `ÉTAPE 8/9: Code PHP backend + JavaScript visualisation pour simulation interactive.\nHypothèse: ${title}`,
-    9: `ÉTAPE 9/9: Rapport scientifique complet prêt à soumettre avec résumé, méthodologie, ressources, timeline.\nHypothèse: ${title}`
+    2: `ÉTAPE 2/9: Pour l'hypothèse suivante, identifie 10-15 articles scientifiques pertinents avec DOI, pertinence, et résumé.\nHypothèse: ${title}${context}`,
+    3: `ÉTAPE 3/9: Analyse critique complète — points forts, faiblesses, contre-arguments, biais.\nHypothèse: ${title}${context}`,
+    4: `ÉTAPE 4/9: Protocole expérimental complet avec matériel, étapes, contrôles, méthodes d'analyse.\nHypothèse: ${title}${context}`,
+    5: `ÉTAPE 5/9: Prédictions quantitatives avec intervalles de confiance et scénarios alternatifs.\nHypothèse: ${title}${context}`,
+    6: `ÉTAPE 6/9: Validation croisée avec théories établies, incohérences, domaines d'application.\nHypothèse: ${title}${context}`,
+    7: `ÉTAPE 7/9: Optimisation — hypothèse affinée, protocole amélioré, réduction coûts/temps.\nHypothèse: ${title}${context}`,
+    8: `ÉTAPE 8/9: Code PHP backend complet avec SQLite + JavaScript visualisation pour simulation interactive. Le code doit être fonctionnel et testable.\nHypothèse: ${title}${context}`,
+    9: `ÉTAPE 9/9: Rédige un ARTICLE SCIENTIFIQUE COMPLET DE HAUT NIVEAU prêt à soumettre. Structure requise:\n- Titre\n- Auteurs (génériques)\n- Résumé structuré (Contexte, Méthodes, Résultats attendus, Conclusion)\n- Introduction détaillée avec revue de littérature\n- Matériel et Méthodes (protocole complet reproductible)\n- Résultats (simulés basés sur les étapes précédentes)\n- Discussion approfondie\n- Conclusion\n- Toutes les références bibliographiques avec DOI\n- Remerciements\n- Conflits d'intérêts\n\nHypothèse: ${title}${context}`
   };
   return prompts[step] || `Étape ${step}: Analyse de l'hypothèse: ${title}`;
 }
