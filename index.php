@@ -918,27 +918,489 @@ async function continueAutonomous() {
   loadHomeStats();
 }
 
-function buildAutoPrompt(step, hyp) {
+function buildAutoPrompt(step, hyp, serverConfig = {}) {
   const title = hyp?.title || 'Hypothèse en cours';
+  const domain = hyp?.domain || 'Science fondamentale';
+  const topic = hyp?.topic || hyp?.question || 'Sujet de recherche';
+  
+  // Construction d'un contexte RICHE et COMPLET (pas de limite arbitraire)
   const prevSteps = [];
   for (let i = 1; i < step; i++) {
     if (hyp.full_responses && hyp.full_responses[`step${i}`]) {
-      prevSteps.push(`ÉTAPE ${i}: ${hyp.full_responses[`step${i}`].substring(0, 500)}...`);
+      prevSteps.push(`=== ÉTAPE ${i} COMPLÉTÉE ===\n${hyp.full_responses[`step${i}`]}\n`);
     }
   }
-  const context = prevSteps.length > 0 ? '\n\nCONTEXTE DES ÉTAPES PRÉCÉDENTES:\n' + prevSteps.join('\n\n') : '';
+  const fullContext = prevSteps.length > 0 
+    ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📚 HISTORIQUE COMPLET DES TRAVAUX (À INTEGRER TOTALEMENT)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${prevSteps.join('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nFIN DU CONTEXTE - UTILISE CES DONNÉES POUR CONSTRUIRE LA SUITE\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` 
+    : '';
+
+  // Configuration du serveur pour que l'IA sache ce qu'elle peut créer
+  const serverAwareness = `
+🖥️ CONFIGURATION DU SERVEUR D'HÉBERGEMENT (tes capacités réelles):
+- Langage: PHP 8.x avec SQLite3 natif
+- Fichiers générables: .php, .json, .txt dans /apps/ et /data/
+- Fonctions disponibles: curl, file_get_contents, JSON, mathématiques (bc_math), graphiques (GD si disponible)
+- Base de données: SQLite3 pour stockage permanent
+- APIs accessibles: arXiv, PubMed, CrossRef, NASA ADS, SSRN, bioRxiv
+- Contraintes: Pas d'exécution shell, pas de connexion DB externe, timeout 120s
+`;
+
+  // Instructions méta-cognitives pour chaque étape
+  const metaInstructions = `
+🧠 MÉTA-INSTRUCTIONS PERMANENTES (à appliquer à TOUTES tes réponses):
+1. AUTO-ÉVALUATION: Avant de répondre, évalue la qualité de ta propre réponse (précision, originalité, rigueur)
+2. EXPÉRIMENTATION RÉELLE: Ne te contente pas de décrire — CRÉE du code exécutable qui TESTE l'hypothèse
+3. PERSPECTIVES INSONDÉES: Propose toujours 2-3 angles de vue jamais explorés dans la littérature
+4. AGGREGATION INTELLIGENTE: Synthétise les connaissances existantes AVANT d'innover
+5. TRANSMISSIBILITÉ: Chaque étape doit produire un artefact réutilisable (app, dataset, protocole)
+`;
 
   const prompts = {
-    2: `ÉTAPE 2/9: Pour l'hypothèse suivante, identifie 10-15 articles scientifiques pertinents avec DOI, pertinence, et résumé.\nHypothèse: ${title}${context}`,
-    3: `ÉTAPE 3/9: Analyse critique complète — points forts, faiblesses, contre-arguments, biais.\nHypothèse: ${title}${context}`,
-    4: `ÉTAPE 4/9: Protocole expérimental complet avec matériel, étapes, contrôles, méthodes d'analyse.\nHypothèse: ${title}${context}`,
-    5: `ÉTAPE 5/9: Prédictions quantitatives avec intervalles de confiance et scénarios alternatifs.\nHypothèse: ${title}${context}`,
-    6: `ÉTAPE 6/9: Validation croisée avec théories établies, incohérences, domaines d'application.\nHypothèse: ${title}${context}`,
-    7: `ÉTAPE 7/9: Optimisation — hypothèse affinée, protocole amélioré, réduction coûts/temps.\nHypothèse: ${title}${context}`,
-    8: `ÉTAPE 8/9: Code PHP backend complet avec SQLite + JavaScript visualisation pour simulation interactive. Le code doit être fonctionnel et testable.\nHypothèse: ${title}${context}`,
-    9: `ÉTAPE 9/9: Rédige un ARTICLE SCIENTIFIQUE COMPLET DE HAUT NIVEAU prêt à soumettre. Structure requise:\n- Titre\n- Auteurs (génériques)\n- Résumé structuré (Contexte, Méthodes, Résultats attendus, Conclusion)\n- Introduction détaillée avec revue de littérature\n- Matériel et Méthodes (protocole complet reproductible)\n- Résultats (simulés basés sur les étapes précédentes)\n- Discussion approfondie\n- Conclusion\n- Toutes les références bibliographiques avec DOI\n- Remerciements\n- Conflits d'intérêts\n\nHypothèse: ${title}${context}`
+    1: `🎯 ÉTAPE 1/9 — GÉNÉRATION D'HYPOTHÈSE RÉVOLUTIONNAIRE
+
+Tu es GENESIS-ULTRA v10.0, un système d'IA de niveau Nobel spécialisé dans la découverte scientifique disruptive.
+
+MISSION: Générer une hypothèse scientifique qui pourrait changer le paradigme actuel.
+
+DOMAINE: ${domain}
+SUJET INITIAL: ${topic}
+
+EXIGENCES CRITIQUES:
+- L'hypothèse doit être FALSIFIABLE (critère de Popper)
+- Elle doit avoir un POTENTIEL DISRUPTIF élevé (remet en cause un consensus)
+- Elle doit être TESTABLE expérimentalement ou computationnellement
+- Identifie le "point aveugle" de la littérature actuelle que ton hypothèse éclaire
+
+FORMAT DE RÉPONSE ATTENDU:
+1. **Titre de l'hypothèse** (accrocheur, précis)
+2. **Énoncé formel** (une phrase claire)
+3. **Rupture paradigmatique** (quel consensus est challengé ?)
+4. **Mécanisme proposé** (comment ça marche ?)
+5. **Prédiction testable immédiate** (que peut-on vérifier MAINTENANT ?)
+6. **Implications majeures** (si vrai, qu'est-ce que ça change ?)
+7. **Risque principal** (pourquoi ça pourrait être faux ?)
+
+${metaInstructions}
+${serverAwareness}
+
+Commence maintenant. Sois audacieux mais rigoureux.`,
+
+    2: `📚 ÉTAPE 2/9 — RECHERCHE BIBLIOGRAPHIQUE INTELLIGENTE AVEC AUTO-ÉVALUATION DES FLUX
+
+Tu es maintenant un bibliothécaire scientifique expert couplé à un système d'évaluation de flux de données.
+
+HYPOTHÈSE À ÉTUDIER: ${title}
+
+MISSION DOUBLE:
+A) Identifier 15-25 articles/papers fondamentaux (avec DOI valides)
+B) Tester et évaluer automatiquement les flux RSS/API pertinents
+
+PROTOCOLE D'AUTO-ÉVALUATION DES FLUX (à exécuter mentalement puis à décrire):
+1. Liste 10-15 sources potentielles (arXiv, PubMed, bioRxiv, Nature, Science, etc.)
+2. Pour CHAQUE source, évalue:
+   - 🟢 FRAÎCHEUR: Les données sont-elles < 2 ans ?
+   - 🔵 DENSITÉ TECHNIQUE: Contient-il des données brutes, des protocoles, des stats ?
+   - 🟣 PERTINENCE: Lien direct avec l'hypothèse ?
+   - 🟡 FIABILITÉ: Peer-reviewed ? Facteur d'impact ?
+3. CLASSE les sources: REJETER / À SURVEILLER / PRIORITAIRE
+4. GÉNÈRE un script PHP qui testera RÉELLEMENT ces flux (voir section CODE)
+
+LIVRABLES ATTENDUS:
+1. **Tableau bibliographique** (20 entries minimum):
+   | DOI | Titre | Authors | Journal | Année | Pertinence (1-5) | Résumé technique |
+   
+2. **Analyse des flux RSS/API**:
+   - Top 5 des flux à haute valeur
+   - Top 3 des flux à rejeter (trop grand public, obsolètes)
+   - Protocole de veille automatisée proposé
+
+3. **CODE PHP À GÉNÉRER** (fichier: rss_evaluator.php):
+   - Script qui teste réellement chaque flux
+   - Mesure la fraîcheur, densité, pertinence
+   - Score automatique et tri
+   - Sortie: JSON exploitable par les étapes suivantes
+
+${fullContext}
+${metaInstructions}
+${serverAwareness}
+
+IMPORTANT: Ne te contente pas de lister — CRÉE l'outil d'évaluation.`,
+
+    3: `⚖️ ÉTAPE 3/9 — ANALYSE CRITIQUE PROFONDE ET CONTRE-ARGUMENTATION RADICALE
+
+Tu es un "Devil's Advocate" scientifique de renommée mondiale, connu pour démolir les hypothèses fragiles.
+
+HYPOTHÈSE À DISSÉQUER: ${title}
+
+MISSION: Détruire cette hypothèse pour la renforcer (ou la rejeter si elle ne résiste pas).
+
+ANALYSE REQUISE (sois impitoyable):
+
+1. **POINTS FORTS** (max 3):
+   - Qu'est-ce qui tient solidement ?
+   - Quelles preuves indirectes existent ?
+
+2. **FAIBLESSES FATALES POTENTIELLES** (sois exhaustif):
+   - Biais cognitifs détectés ?
+   - Données manquantes critiques ?
+   - Mécanismes non expliqués ?
+   - Alternatives plus parcimonieuses ?
+
+3. **CONTRE-ARGUMENTS MAJEURS** (3 minimum):
+   - Construis 3 objections solides que n'importe quel reviewer poserait
+   - Pour chaque objection, propose une réfutation OU accepte la limitation
+
+4. **TESTS CRUCIAUX** (Critical Tests):
+   - Quelle expérience UNIQUE pourrait falsifier définitivement l'hypothèse ?
+   - Quel résultat annulerait tout le travail ?
+
+5. **MICRO-APP À CRÉER** (fichier: critique_simulator.php):
+   - Interface interactive où l'utilisateur peut:
+     * Modifier les paramètres de l'hypothèse
+     * Voir comment la robustesse change
+     * Simuler des contre-arguments
+   - Utilise des sliders, des calculs en temps réel
+
+6. **SCORE DE ROBUSTESSE** (0-100):
+   - Justifie mathématiquement ce score
+   - Compare à des hypothèses historiques (ex: théorie des germes, relativité)
+
+${fullContext}
+${metaInstructions}
+${serverAwareness}
+
+Sois brutal mais constructif. Une hypothèse qui survit à cette étape mérite d'être testée.`,
+
+    4: `🔬 ÉTAPE 4/9 — PROTOCOLE EXPÉRIMENTAL COMPLET ET REPRODUCTIBLE
+
+Tu es un directeur de laboratoire d'élite avec 30 ans d'expérience en design expérimental.
+
+HYPOTHÈSE À TESTER: ${title}
+
+MISSION: Concevoir LE protocole qui tranchera définitivement.
+
+EXIGENCES DE RIGUEUR:
+- Niveau de détail: Un doctorant doit pouvoir reproduire SANS aide
+- Contrôles: Tous les contrôles positifs/négatifs nécessaires
+- Statistiques: Puissance calculée, seuils définis AVANT
+
+STRUCTURE DU PROTOCOLE:
+
+1. **DESIGN EXPÉRIMENTAL**:
+   - Type d'étude (RCT, observationnelle, simulation, etc.)
+   - Taille d'échantillon (avec calcul de puissance)
+   - Randomisation et aveuglement
+
+2. **MATÉRIEL ET RESSOURCES**:
+   - Liste exhaustive (équipements, réactifs, logiciels)
+   - Coût estimé
+   - Temps requis
+
+3. **PROCÉDURE PAS-À-PAS**:
+   - Jour 1 à Jour N
+   - Chaque manipulation détaillée
+   - Points de décision critiques
+
+4. **COLLECTE DE DONNÉES**:
+   - Quelles mesures exactement ?
+   - Fréquence de mesure
+   - Format de stockage
+
+5. **ANALYSE STATISTIQUE PRÉ-ENREGISTRÉE**:
+   - Tests à utiliser
+   - Critères de signification
+   - Gestion des outliers
+
+6. **MICRO-APP À CRÉER** (fichier: protocol_designer.php):
+   - Générateur interactif de protocole
+   - Calculateur de taille d'échantillon intégré
+   - Timeline visuelle modifiable
+   - Export PDF/JSON du protocole
+
+7. **PLAN B, C, D**:
+   - Que faire si l'expérience principale échoue ?
+   - Expériences alternatives moins coûteuses
+
+${fullContext}
+${metaInstructions}
+${serverAwareness}
+
+Ce protocole doit être assez solide pour être soumis à Nature Methods.`,
+
+    5: `📊 ÉTAPE 5/9 — PRÉDICTIONS QUANTITATIVES PRÉCISES AVEC MODÉLISATION MATHÉMATIQUE
+
+Tu es un physicien-mathématicien expert en modélisation prédictive.
+
+HYPOTHÈSE: ${title}
+
+MISSION: Transformer l'hypothèse qualitative en PRÉDICTIONS CHIFFRÉES testables.
+
+LIVRABLES:
+
+1. **MODÈLE MATHÉMATIQUE**:
+   - Équations principales (utilise LaTeX pour la clarté)
+   - Variables et paramètres définis
+   - Hypothèses simplificatrices explicitées
+
+2. **PRÉDICTIONS QUANTITATIVES** (minimum 5):
+   | Prédiction | Valeur attendue | Intervalle de confiance (95%) | Méthode de vérification |
+   - Ex: "Le taux X augmentera de 23% ± 5% sous condition Y"
+
+3. **SCÉNARIOS ALTERNATIFS**:
+   - Scénario optimal (tout fonctionne)
+   - Scénario pessimiste (problèmes majeurs)
+   - Scénario "cygne noir" (résultat inattendu mais cohérent)
+
+4. **SIGNATURES OBSERVATIONNELLES**:
+   - Quels patterns spécifiques chercher dans les données ?
+   - Comment distinguer ton hypothèse des alternatives ?
+
+5. **MICRO-APP À CRÉER** (fichier: prediction_modeler.php):
+   - Interface de simulation numérique
+   - Sliders pour modifier les paramètres
+   - Graphiques en temps réel (Chart.js ou GD)
+   - Export des prédictions en CSV/JSON
+   - Comparaison visuelle scénario vs réalité
+
+6. **MÉTRIQUES DE SUCCÈS**:
+   - Quels critères chiffrés valideront l'hypothèse ?
+   - Seuil de rejet clair
+
+${fullContext}
+${metaInstructions}
+${serverAwareness}
+
+Les prédictions doivent être assez précises pour qu'un mauvais résultat soit clairement identifiable.`,
+
+    6: `🔗 ÉTAPE 6/9 — VALIDATION CROISÉE ET INTÉGRATION THÉORIQUE
+
+Tu es un synthétiseur de connaissances transdisciplinaires.
+
+HYPOTHÈSE: ${title}
+
+MISSION: Vérifier la cohérence avec TOUT le savoir établi.
+
+ANALYSES REQUISES:
+
+1. **COMPATIBILITÉ THÉORIQUE**:
+   - Quelles théories établies SUPPORTENT l'hypothèse ?
+   - Quelles théories semblent la CONTREDIRE ?
+   - Y a-t-il moyen de réconcilier les contradictions ?
+
+2. **VALIDATION CROISÉE DOMAINE PAR DOMAINE**:
+   - Physique/chimie: Compatible avec les lois fondamentales ?
+   - Biologie: Cohérent avec la biologie cellulaire/moléculaire ?
+   - Neurosciences/psycho: Si applicable, compatible avec les données cognitives ?
+   - Sciences sociales: Implications sociétales cohérentes ?
+
+3. **ANALOGIES HISTORIQUES**:
+   - Trouve 3 cas historiques similaires (hypothèse disruptive validée ou rejetée)
+   - Quelles leçons en tirer ?
+
+4. **INCOHÉRENCES DÉTECTÉES**:
+   - Liste honnête des tensions non résolues
+   - Pistes de résolution
+
+5. **DOMAINES D'APPLICATION INSoupçONNÉS**:
+   - Où cette hypothèse pourrait-elle s'appliquer de manière inattendue ?
+   - Applications transversales
+
+6. **MICRO-APP À CRÉER** (fichier: theory_mapper.php):
+   - Carte interactive des connexions théoriques
+   - Visualisation des supports/contradictions
+   - Navigation dans le réseau conceptuel
+   - Export de la carte en JSON
+
+${fullContext}
+${metaInstructions}
+${serverAwareness}
+
+Une hypothèse isolée meurt vite. Montre comment elle s'enracine dans le savoir existant tout en l'étendant.`,
+
+    7: `⚡ ÉTAPE 7/9 — OPTIMISATION RADICALE ET ITÉRATION
+
+Tu es un ingénieur en optimisation scientifique (méthode Taguchi + approche bayésienne).
+
+HYPOTHÈSE ACTUELLE: ${title}
+
+MISSION: Améliorer, affiner, optimiser TOUT le processus de recherche.
+
+OPTIMISATIONS À PRODUIRE:
+
+1. **HYPOTHÈSE AFFINÉE**:
+   - Reformulation après apprentissage des étapes 1-6
+   - Version 2.0 plus précise, plus testable, plus robuste
+
+2. **PROTOCOLE OPTIMISÉ**:
+   - Réduction des coûts (comment faire 10x moins cher ?)
+   - Réduction du temps (comment aller 5x plus vite ?)
+   - Augmentation de la puissance statistique
+
+3. **RÉDUCTION DES INCERTITUDES**:
+   - Quelles sources de bruit éliminer ?
+   - Comment améliorer le rapport signal/bruit ?
+
+4. **ITÉRATIONS RAPIDES**:
+   - Design d'expériences "quick & dirty" pour validation rapide
+   - Boucles de feedback courtes
+
+5. **SCALE-UP**:
+   - Comment passer du pilote à grande échelle ?
+   - Infrastructure nécessaire
+
+6. **MICRO-APP À CRÉER** (fichier: optimizer.php):
+   - Outil d'optimisation multi-paramètres
+   - Simulation de compromis coût/temps/précision
+   - Recommandations algorithmiques
+   - Visualisation des fronts de Pareto
+
+7. **NOUVELLES HYPOTHÈSES DÉRIVÉES**:
+   - Quelles hypothèses secondaires émergent ?
+   - Arbres de recherche futurs
+
+${fullContext}
+${metaInstructions}
+${serverAwareness}
+
+L'optimisation est ce qui sépare une idée brillante d'une découverte réelle.`,
+
+    8: `💻 ÉTAPE 8/9 — CRÉATION D'APPLICATIONS SCIENTIFIQUES EXÉCUTABLES
+
+Tu es un développeur full-stack scientifique expert (PHP, JS, SQLite, visualisation).
+
+HYPOTHÈSE À IMPLÉMENTER: ${title}
+
+MISSION CRITIQUE: CRÉER DE VRAIES APPLICATIONS PHP QUI TESTENT L'HYPOTHÈSE.
+
+CONTRAINTES TECHNIQUES (basé sur la config serveur):
+- PHP 8.x avec SQLite3
+- Pas de frameworks lourds, code vanilla optimisé
+- Visualisations: Chart.js via CDN ou GD library
+- Stockage: fichiers JSON + SQLite
+- Sécurité: validation inputs, pas de shell_exec
+
+APPLICATIONS À GÉNÉRER (une par ligne, code COMPLET):
+
+1. **simulateur_core.php** — Simulation numérique principale
+   - Implémente le modèle mathématique de l'étape 5
+   - Interface avec paramètres modifiables
+   - Résultats en temps réel avec graphiques
+   - Export des données
+
+2. **data_analyzer.php** — Analyseur de données expérimentales
+   - Upload de CSV/JSON
+   - Tests statistiques automatiques
+   - Visualisations comparatives
+   - Détection d'anomalies
+
+3. **protocol_runner.php** — Exécuteur de protocole interactif
+   - Guide pas-à-pas l'expérimentateur
+   - Enregistre les données au fur et à mesure
+   - Alertes si déviation du protocole
+
+4. **hypothesis_dashboard.php** — Dashboard global
+   - Vue d'ensemble de toutes les métriques
+   - État d'avancement des tests
+   - Alertes et notifications
+
+POUR CHAQUE APPLICATION:
+- Code PHP COMPLET et AUTONOME (un seul fichier par app)
+- Commentaires détaillés
+- Gestion d'erreurs robuste
+- UI propre et intuitive (CSS inclus)
+- Données de démonstration intégrées
+
+FORMAT DE RÉPONSE:
+Pour chaque application:
+\`\`\`php
+<?php
+// Nom: [nom_du_fichier.php]
+// Description: [...]
+// Date: [date]
+
+[TOUT LE CODE ICI, PRÊT À ÊTRE COPIÉ-COLLÉ]
+?>
+\`\`\`
+
+${fullContext}
+${metaInstructions}
+${serverAwareness}
+
+IMPORTANT: Le code doit être 100% fonctionnel. Teste-le mentalement ligne par ligne.`,
+
+    9: `📜 ÉTAPE 9/9 — ARTICLE SCIENTIFIQUE FINAL DE NIVEAU NATURE/SCIENCE
+
+Tu es un rédacteur scientifique d'élite, auteur de publications dans Nature, Science, Cell.
+
+HYPOTHÈSE ET TRAVAUX COMPLÉTS: ${title}
+
+MISSION: Rédiger L'ARTICLE DÉFINITIF qui présente toute la recherche.
+
+STRUCTURE EXIGÉE (standard Nature):
+
+1. **TITLE** (15 mots max, accrocheur et précis)
+
+2. **AUTHORS** (équipe générique + affiliations)
+
+3. **ABSTRACT** (150 mots, structuré):
+   - Background (1 phrase)
+   - Methods (1 phrase)
+   - Results (2-3 phrases avec chiffres clés)
+   - Conclusion (1 phrase sur l'impact)
+
+4. **INTRODUCTION** (800-1000 mots):
+   - Contexte et état de l'art
+   - Gap dans les connaissances
+   - Hypothèse proposée
+   - Approche générale
+
+5. **RESULTS** (1500-2000 mots):
+   - Sous-sections thématiques
+   - Figures décrites précisément (Figure 1, 2, 3...)
+   - Données chiffrées avec stats
+   - Intégration des résultats des micro-apps
+
+6. **DISCUSSION** (1200-1500 mots):
+   - Interprétation des résultats
+   - Comparaison avec littérature
+   - Limitations honnêtes
+   - Implications théoriques et pratiques
+
+7. **METHODS** (1000-1200 mots):
+   - Protocole reproductible
+   - Analyses statistiques
+   - Codes et données disponibles (liens vers apps)
+
+8. **CONCLUSION** (300 mots):
+   - Synthèse des apports
+   - Perspectives futures
+   - Appel à la communauté
+
+9. **REFERENCES** (25-40 références format Nature):
+   - Toutes avec DOI
+   - Mélange classique + préprints récents
+
+10. **ACKNOWLEDGEMENTS & COMPETING INTERESTS**
+
+11. **EXTENDED DATA** (description des figures supplémentaires)
+
+12. **CODE & DATA AVAILABILITY**:
+    - Liste des micro-apps créées avec URLs
+    - Jeux de données générés
+    - Dépôt GitHub suggéré
+
+BONUS: Inclure un "BOX" pédagogique expliquant un concept clé au grand public.
+
+${fullContext}
+${metaInstructions}
+${serverAwareness}
+
+STYLE: Rigoureux, clair, impactant. Chaque phrase doit apporter de l'information. Zéro remplissage.
+
+Cet article doit donner envie à un reviewer de dire "YES, PUBLIER MAINTENANT".`
   };
-  return prompts[step] || `Étape ${step}: Analyse de l'hypothèse: ${title}`;
+
+  return prompts[step] || `Étape ${step}: Analyse avancée de: ${title}`;
 }
 
 function displayAutoResult(text, title, icon) {
